@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#183c2d">
+  <meta name="description" content="Buy and sell pre-loved golf clubs, with optional PGA professional verification.">
+  <title>Re-Golf — Better clubs, back in play</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1d2922;
+      --muted: #68736b;
+      --forest: #183c2d;
+      --forest-2: #244e3b;
+      --lime: #d7ed9b;
+      --paper: #f7f7f1;
+      --white: #fff;
+      --line: #e4e8df;
+      --gold: #b9853b;
+      --shadow: 0 16px 42px rgba(24, 60, 45, .09);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+    .wrap { width: min(1160px, calc(100% - 40px)); margin-inline: auto; }
+    .top-note { background: var(--forest); color: #e9f2e7; text-align: center; padding: 9px 16px; font-size: .78rem; letter-spacing: .025em; }
+    .top-note strong { color: var(--lime); font-weight: 700; }
+    header { background: var(--paper); border-bottom: 1px solid rgba(24, 60, 45, .08); }
+    .nav { min-height: 76px; display: flex; align-items: center; gap: 34px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 850; font-size: 1.35rem; letter-spacing: -.055em; white-space: nowrap; }
+    .brand-mark { width: 35px; height: 35px; display: grid; place-items: center; color: var(--lime); background: var(--forest); border-radius: 12px 12px 12px 4px; }
+    .brand-mark svg { width: 21px; height: 21px; }
+    .nav-links { display: flex; gap: 27px; align-items: center; margin-left: auto; color: #536057; font-size: .91rem; font-weight: 600; }
+    .nav-links a:hover { color: var(--forest); }
+    .nav-actions { display: flex; align-items: center; gap: 12px; }
+    .button { border: 0; border-radius: 999px; padding: 12px 19px; font-weight: 700; transition: transform .16s ease, background .16s ease; }
+    .button:hover { transform: translateY(-1px); }
+    .button-dark { color: white; background: var(--forest); }
+    .button-dark:hover { background: var(--forest-2); }
+    .button-light { color: var(--forest); background: #eaf0e5; }
+    .button-outline { background: transparent; color: var(--forest); border: 1px solid #cbd5ca; }
+    .button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, .chip:focus-visible { outline: 3px solid #8eaf62; outline-offset: 3px; }
+    .icon-button { border: 0; background: transparent; color: var(--forest); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; }
+    .icon-button:hover { background: #edf0e9; }
+    .icon-button svg { width: 20px; height: 20px; }
+
+    .hero { padding: 58px 0 50px; overflow: hidden; }
+    .hero-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
+    .eyebrow { color: var(--forest-2); text-transform: uppercase; font-weight: 800; font-size: .73rem; letter-spacing: .15em; display: flex; align-items: center; gap: 9px; }
+    .eyebrow::before { content: ""; height: 2px; width: 23px; background: #9db86a; }
+    h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.055em; font-size: clamp(3.2rem, 6vw, 5.5rem); line-height: .98; margin: 18px 0 22px; max-width: 650px; }
+    h1 em { color: #63814f; font-weight: 500; }
+    .hero-copy { max-width: 510px; line-height: 1.7; color: #59665d; margin: 0 0 26px; font-size: 1.04rem; }
+    .search { display: flex; align-items: center; gap: 10px; background: white; border: 1px solid #e6e9e1; border-radius: 999px; padding: 7px 8px 7px 17px; max-width: 570px; box-shadow: 0 8px 25px rgba(30, 55, 39, .05); }
+    .search svg { color: #78837a; width: 19px; height: 19px; flex: none; }
+    .search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--ink); padding: 10px 0; }
+    .search .button { padding: 11px 20px; }
+    .hero-proof { display: flex; gap: 20px; margin-top: 21px; color: var(--muted); font-size: .82rem; }
+    .hero-proof span { display: inline-flex; align-items: center; gap: 6px; }
+    .hero-proof b { color: var(--forest); }
+    .hero-art { position: relative; min-height: 365px; display: grid; place-items: center; }
+    .hero-orb { position: absolute; width: min(390px, 85%); aspect-ratio: 1; border-radius: 50%; background: #e4ecd9; right: 6%; top: 50%; transform: translateY(-50%); }
+    .hero-sun { position: absolute; width: 76px; aspect-ratio: 1; border-radius: 50%; background: #f4d79a; top: 13%; right: 14%; }
+    .hero-course { position: absolute; width: 110%; height: 170px; bottom: -6px; left: -5%; border-radius: 50% 50% 0 0; background: #d8e2c8; transform: rotate(-8deg); }
+    .hero-course::after { content: ""; position: absolute; width: 80%; height: 90px; left: 19%; bottom: -18px; border-radius: 50% 50% 0 0; background: #c5d5ad; }
+    .hero-club { width: min(390px, 85%); position: relative; z-index: 2; transform: rotate(-20deg) translate(5px, -6px); filter: drop-shadow(0 18px 15px rgba(29, 55, 36, .12)); }
+    .floating-tag { position: absolute; z-index: 3; background: white; box-shadow: var(--shadow); border-radius: 15px; padding: 12px 15px; display: flex; align-items: center; gap: 10px; font-size: .78rem; font-weight: 700; }
+    .floating-tag small { display: block; color: var(--muted); font-weight: 500; margin-top: 3px; }
+    .tag-check { top: 16%; left: 0; }
+    .tag-check-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #edf4df; color: var(--forest); }
+    .tag-check-icon svg { width: 18px; height: 18px; }
+    .tag-save { bottom: 12%; right: 0; }
+    .tag-save b { font-size: 1.05rem; color: var(--forest); }
+
+    .demo-strip { background: #fff6e8; border-block: 1px solid #f1e4ce; color: #745a35; font-size: .79rem; padding: 11px 0; }
+    .demo-strip .wrap { display: flex; align-items: center; gap: 9px; }
+    .demo-strip svg { width: 16px; height: 16px; flex: none; }
+    .trust-section { padding: 52px 0 58px; background: #edf1e8; }
+    .trust-card { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 24px; }
+    .trust-card .eyebrow { color: #668049; }
+    h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.035em; font-size: clamp(2rem, 3.2vw, 2.8rem); margin: 11px 0 10px; }
+    .trust-card p { color: #5d695f; line-height: 1.6; margin: 0; max-width: 660px; }
+    .trust-price { padding: 15px 20px; border: 1px solid #d5dece; border-radius: 15px; color: var(--forest); text-align: center; min-width: 152px; }
+    .trust-price strong { display: block; font-size: 1.65rem; letter-spacing: -.04em; }
+    .trust-price span { font-size: .75rem; color: #647064; }
+
+    .market { padding: 66px 0 84px; }
+    .market-head { display: flex; align-items: end; justify-content: space-between; gap: 25px; margin-bottom: 26px; }
+    .market-head h2 { margin-bottom: 6px; }
+    .market-head p { color: var(--muted); margin: 0; }
+    .result-count { color: var(--muted); font-size: .85rem; white-space: nowrap; padding-bottom: 5px; }
+    .filters { display: flex; gap: 9px; overflow-x: auto; padding: 3px 2px 12px; margin-bottom: 18px; scrollbar-width: thin; }
+    .chip { border: 1px solid #e0e5dc; background: white; color: #59655d; padding: 10px 17px; border-radius: 999px; white-space: nowrap; font-size: .85rem; font-weight: 650; }
+    .chip:hover { border-color: #9cad91; color: var(--forest); }
+    .chip.active { background: var(--forest); border-color: var(--forest); color: white; }
+    .listing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+    .listing { min-width: 0; background: white; border: 1px solid #e9ece5; border-radius: 18px; overflow: hidden; transition: transform .18s ease, box-shadow .18s ease; }
+    .listing:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+    .listing-visual { position: relative; height: 220px; display: grid; place-items: center; overflow: hidden; background: var(--tone, #e6ecdc); }
+    .listing-visual::before, .listing-visual::after { content: ""; position: absolute; border-radius: 50%; border: 1px solid rgba(24, 60, 45, .09); width: 220px; height: 220px; }
+    .listing-visual::after { width: 155px; height: 155px; }
+    .listing-visual svg { position: relative; z-index: 1; width: 77%; height: 78%; filter: drop-shadow(0 10px 7px rgba(24, 40, 28, .15)); }
+    .listing-visual .condition-label { position: absolute; left: 13px; top: 13px; z-index: 2; font-size: .69rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 800; color: #344b39; background: rgba(255,255,255,.82); border-radius: 999px; padding: 7px 10px; }
+    .save-button { position: absolute; right: 12px; top: 12px; z-index: 2; background: rgba(255,255,255,.9); color: #445047; }
+    .save-button.saved { color: #b84d41; }
+    .listing-info { padding: 16px 17px 17px; }
+    .listing-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #738076; font-size: .73rem; }
+    .listing-meta .category-label { color: #57754b; font-weight: 750; }
+    .listing h3 { margin: 9px 0 5px; font-size: 1.04rem; letter-spacing: -.025em; line-height: 1.3; }
+    .listing-sub { color: #778078; font-size: .8rem; }
+    .listing-bottom { border-top: 1px solid #edf0eb; padding-top: 13px; margin-top: 15px; display: flex; justify-content: space-between; align-items: end; gap: 10px; }
+    .listing-price { font-size: 1.32rem; font-weight: 800; letter-spacing: -.04em; color: var(--forest); }
+    .auth-available { color: #607850; font-size: .7rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; }
+    .auth-available svg { width: 13px; height: 13px; }
+    .details-link { border: 0; color: var(--forest); background: transparent; font-size: .8rem; font-weight: 750; padding: 9px 0 5px 8px; }
+    .empty-state { text-align: center; padding: 50px 20px; color: var(--muted); grid-column: 1 / -1; background: white; border-radius: 18px; border: 1px dashed #d9e0d5; }
+    .sell-cta { padding: 42px; background: var(--forest); color: white; border-radius: 22px; display: flex; justify-content: space-between; align-items: center; gap: 25px; margin-top: 72px; }
+    .sell-cta h2 { color: white; margin: 0 0 7px; }
+    .sell-cta p { margin: 0; color: #c3d1c6; }
+    .sell-cta .button { background: var(--lime); color: var(--forest); flex: none; }
+    footer { border-top: 1px solid #e5e9e1; color: #6f7a71; font-size: .8rem; padding: 23px 0 32px; }
+    .footer-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    footer .brand { color: var(--ink); font-size: 1rem; }
+    footer .brand-mark { width: 29px; height: 29px; border-radius: 10px 10px 10px 3px; }
+    footer .brand-mark svg { width: 17px; height: 17px; }
+    .footer-note { max-width: 550px; text-align: right; line-height: 1.5; }
+
+    dialog { border: 0; border-radius: 20px; width: min(560px, calc(100% - 28px)); max-height: min(88vh, 850px); padding: 0; box-shadow: 0 24px 80px rgba(11, 25, 16, .28); color: var(--ink); }
+    dialog::backdrop { background: rgba(16, 29, 20, .52); backdrop-filter: blur(3px); }
+    .dialog-inner { padding: 25px; }
+    .dialog-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+    .dialog-head h2 { font-family: inherit; font-size: 1.35rem; font-weight: 750; margin: 0 0 5px; letter-spacing: -.03em; }
+    .dialog-head p { color: var(--muted); font-size: .85rem; margin: 0; }
+    .dialog-visual { height: 170px; background: var(--tone, #e6ecdc); border-radius: 14px; display: grid; place-items: center; margin: 20px 0; }
+    .dialog-visual svg { height: 90%; width: 75%; }
+    .seller-line { display: flex; justify-content: space-between; gap: 12px; color: #68746b; font-size: .82rem; margin-bottom: 17px; }
+    .auth-option { display: flex; gap: 12px; align-items: start; background: #f0f4e9; border: 1px solid #e0e9d5; border-radius: 13px; padding: 14px; cursor: pointer; }
+    .auth-option input { margin-top: 4px; accent-color: var(--forest); }
+    .auth-option strong { display: block; font-size: .88rem; margin-bottom: 4px; }
+    .auth-option small { display: block; color: #647064; line-height: 1.45; }
+    .price-breakdown { margin: 18px 0; padding: 15px 0; border-block: 1px solid #edf0eb; display: grid; gap: 9px; font-size: .84rem; }
+    .price-row { display: flex; justify-content: space-between; gap: 14px; color: #667168; }
+    .price-row.total { color: var(--ink); font-size: 1rem; font-weight: 800; padding-top: 7px; border-top: 1px solid #edf0eb; }
+    .estimate-note { font-size: .74rem; color: #777f78; line-height: 1.5; margin: 0 0 14px; }
+    .dialog-actions { display: flex; gap: 10px; }
+    .dialog-actions .button { flex: 1; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 21px 0; }
+    .field { display: grid; gap: 6px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { color: #526056; font-size: .78rem; font-weight: 700; }
+    .field input, .field select { width: 100%; padding: 11px 12px; border: 1px solid #dfe5dc; border-radius: 10px; background: white; color: var(--ink); }
+    .status-message { display: none; margin-top: 14px; padding: 12px 14px; background: #eff5e7; border-radius: 11px; color: var(--forest); font-size: .83rem; line-height: 1.5; }
+    .status-message.visible { display: block; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 850px) {
+      .nav { gap: 18px; }
+      .nav-links { gap: 15px; }
+      .nav-links a:nth-child(2) { display: none; }
+      .hero-grid { gap: 12px; }
+      .hero-art { min-height: 320px; }
+      .listing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .wrap { width: min(100% - 30px, 500px); }
+      .top-note { font-size: .69rem; }
+      .nav { min-height: 65px; gap: 8px; }
+      .brand { font-size: 1.15rem; }
+      .brand-mark { width: 31px; height: 31px; }
+      .nav-links { display: none; }
+      .nav-actions { margin-left: auto; gap: 4px; }
+      .nav-actions .button { padding: 10px 14px; font-size: .82rem; }
+      .hero { padding: 36px 0 32px; }
+      .hero-grid { grid-template-columns: 1fr; }
+      .hero-copy { font-size: .94rem; }
+      .hero-art { min-height: 270px; margin-top: 2px; }
+      .hero-orb { width: 260px; right: 50%; transform: translate(50%, -50%); }
+      .hero-club { width: 275px; }
+      .hero-sun { right: 12%; top: 7%; width: 54px; }
+      .tag-check { left: 0; top: 10%; }
+      .tag-save { right: 0; bottom: 7%; }
+      .floating-tag { padding: 9px 11px; font-size: .7rem; }
+      .tag-check-icon { width: 29px; height: 29px; }
+      .hero-proof { flex-wrap: wrap; gap: 8px 15px; font-size: .76rem; }
+      .demo-strip { font-size: .72rem; }
+      .trust-section { padding: 36px 0; }
+      .trust-card { grid-template-columns: 1fr; gap: 17px; }
+      .trust-price { display: flex; align-items: center; justify-content: center; gap: 9px; min-width: 0; width: max-content; padding: 10px 16px; }
+      .trust-price strong { font-size: 1.2rem; }
+      .market { padding: 45px 0 60px; }
+      .market-head { align-items: start; flex-direction: column; gap: 8px; }
+      .listing-grid { gap: 12px; }
+      .listing-visual { height: 155px; }
+      .listing-visual svg { width: 85%; }
+      .listing-info { padding: 12px; }
+      .listing h3 { font-size: .91rem; }
+      .listing-sub { font-size: .72rem; }
+      .listing-meta { font-size: .64rem; }
+      .listing-price { font-size: 1.1rem; }
+      .auth-available { font-size: .62rem; }
+      .details-link { font-size: .73rem; }
+      .condition-label { font-size: .59rem !important; padding: 6px 8px !important; }
+      .save-button { width: 32px; height: 32px; }
+      .sell-cta { margin-top: 48px; padding: 26px 21px; align-items: start; flex-direction: column; }
+      .sell-cta .button { width: 100%; }
+      .footer-row { align-items: start; flex-direction: column; }
+      .footer-note { text-align: left; }
+    }
+    @media (max-width: 380px) {
+      .listing-grid { grid-template-columns: 1fr; }
+      .listing-visual { height: 205px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .dialog-inner { padding: 20px; }
+      .search .button { padding-inline: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-note"><strong>Golf gear, back in play.</strong> A marketplace made for the next round.</div>
+  <header>
+    <nav class="nav wrap" aria-label="Main navigation">
+      <a class="brand" href="#" aria-label="Re-Golf home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M7 19 14.8 5m0 0 2.2 1.2M14.8 5l-2.2-1.2M7 19c-.8 1.4-2.1 2.1-3.6 1.6-1.1-.4-1.5-1.4-1.1-2.4.4-1.1 1.8-1.8 3.6-1.5l2.2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.5" cy="18.5" r="2" fill="#d7ed9b"/></svg>
+        </span>
+        Re-Golf
+      </a>
+      <div class="nav-links">
+        <a href="#market">Browse clubs</a>
+        <a href="#verification">How verification works</a>
+      </div>
+      <div class="nav-actions">
+        <button class="icon-button" id="saved-filter" type="button" aria-label="Show saved clubs" title="Saved clubs">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 8.8c0 4.1-8.5 10-8.5 10s-8.5-5.9-8.5-10a4.5 4.5 0 0 1 8.5-2.1 4.5 4.5 0 0 1 8.5 2.1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="button button-dark" type="button" data-open-sell>Sell a club</button>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <div class="eyebrow">The golf gear exchange</div>
+          <h1>Better clubs.<br><em>Second swings.</em></h1>
+          <p class="hero-copy">Find your next favourite club, or give the one in your garage a new home. Made for golfers who know good gear deserves another round.</p>
+          <form class="search" id="search-form" role="search">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <label class="sr-only" for="search-input">Search golf clubs</label>
+            <input id="search-input" type="search" placeholder="Try “blade putter” or “Ping driver”">
+            <button class="button button-dark" type="submit">Search</button>
+          </form>
+          <div class="hero-proof">
+            <span><b>UK-wide</b> marketplace</span>
+            <span><b>Buyer-paid</b> delivery &amp; fees</span>
+            <span><b>Optional</b> PGA pro check</span>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="hero-orb"></div>
+          <div class="hero-sun"></div>
+          <div class="hero-course"></div>
+          <svg class="hero-club" viewBox="0 0 360 360" fill="none">
+            <path d="M117 292 259 65" stroke="#33443a" stroke-width="11" stroke-linecap="round"/>
+            <path d="m251 66 8-13" stroke="#1b2c23" stroke-width="14" stroke-linecap="round"/>
+            <path d="m104 292 21 13c6 4 15 3 19-4l8-13-41-24-9 13c-4 5-3 12 2 15Z" fill="#183c2d"/>
+            <path d="m105 285 40 23m-34-34 40 23m-33-34 39 23" stroke="#9bb381" stroke-width="2"/>
+            <circle cx="193" cy="174" r="13" fill="#fffdf3" stroke="#d7ed9b" stroke-width="3"/>
+            <path d="M85 324c34-20 75-16 99-2m-87 12c37-18 77-15 101 0" stroke="#b3c69d" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+          <div class="floating-tag tag-check"><span class="tag-check-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 12 4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>PGA pro check<small>Optional at checkout</small></span></div>
+          <div class="floating-tag tag-save"><span><b>Good gear,</b><small>ready for another round</small></span></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="demo-strip">
+      <div class="wrap">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 3.8 7v5.5c0 4.8 3.5 7.6 8.2 9.5 4.7-1.9 8.2-4.7 8.2-9.5V7L12 3Z" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span><strong>Prototype preview:</strong> example listings and estimated fees only. No live orders or payments are processed.</span>
+      </div>
+    </div>
+
+    <section class="trust-section" id="verification">
+      <div class="wrap trust-card">
+        <div>
+          <div class="eyebrow">Play with confidence</div>
+          <h2>Not sure it’s the real deal?</h2>
+          <p>Choose an optional review by a PGA professional at checkout. The demo adds a £10 verification fee plus estimated route postage, all shown to the buyer before they commit.</p>
+        </div>
+        <div class="trust-price"><strong>£10</strong><span>verification + postage</span></div>
+      </div>
+    </section>
+
+    <section class="market wrap" id="market">
+      <div class="market-head">
+        <div>
+          <div class="eyebrow">The latest from the fairway</div>
+          <h2>Find your next club</h2>
+          <p>Pre-loved gear, ready for another round.</p>
+        </div>
+        <div class="result-count" id="result-count" aria-live="polite"></div>
+      </div>
+      <div class="filters" id="filters" aria-label="Filter clubs by category"></div>
+      <div class="listing-grid" id="listing-grid"></div>
+      <div class="sell-cta">
+        <div><h2>Got a club to pass on?</h2><p>List it in minutes and let someone else take it for a spin.</p></div>
+        <button class="button" type="button" data-open-sell>List your club <span aria-hidden="true">→</span></button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-row">
+      <a class="brand" href="#" aria-label="Re-Golf home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 19 14.8 5m0 0 2.2 1.2M14.8 5l-2.2-1.2M7 19c-.8 1.4-2.1 2.1-3.6 1.6-1.1-.4-1.5-1.4-1.1-2.4.4-1.1 1.8-1.8 3.6-1.5l2.2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.5" cy="18.5" r="2" fill="#d7ed9b"/></svg></span>Re-Golf</a>
+      <div class="footer-note">Independent concept prototype. Product names are examples only; Re-Golf is not affiliated with any golf equipment brand or marketplace.</div>
+    </div>
+  </footer>
+
+  <dialog id="listing-dialog" aria-labelledby="listing-dialog-title">
+    <div class="dialog-inner">
+      <div class="dialog-head">
+        <div><h2 id="listing-dialog-title"></h2><p id="listing-dialog-subtitle"></p></div>
+        <button class="icon-button" type="button" data-close-dialog aria-label="Close listing details"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="dialog-visual" id="dialog-visual"></div>
+      <div class="seller-line"><span id="dialog-location"></span><span id="dialog-condition"></span></div>
+      <label class="auth-option">
+        <input id="verification-toggle" type="checkbox">
+        <span><strong>Add a PGA professional verification</strong><small>£10 service fee plus estimated route postage. The buyer pays; this is a demo estimate and is confirmed before any real order.</small></span>
+      </label>
+      <div class="price-breakdown" id="price-breakdown"></div>
+      <p class="estimate-note">Illustrative test-mode breakdown only. Buyer fees and delivery estimates are configurable; no money will be charged.</p>
+      <div class="dialog-actions">
+        <button class="button button-outline" type="button" data-close-dialog>Keep browsing</button>
+        <button class="button button-dark" id="checkout-button" type="button">Continue to test checkout</button>
+      </div>
+      <div class="status-message" id="checkout-message" role="status"></div>
+    </div>
+  </dialog>
+
+  <dialog id="sell-dialog" aria-labelledby="sell-dialog-title">
+    <div class="dialog-inner">
+      <div class="dialog-head">
+        <div><h2 id="sell-dialog-title">List a club</h2><p>Add a few details to create a sample listing.</p></div>
+        <button class="icon-button" type="button" data-close-dialog aria-label="Close listing form"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </div>
+      <form id="sell-form">
+        <div class="form-grid">
+          <div class="field full"><label for="club-name">Club name</label><input id="club-name" name="name" required maxlength="70" placeholder="e.g. 7 iron, forged blade"></div>
+          <div class="field"><label for="club-category">Category</label><select id="club-category" name="category"><option>Drivers</option><option>Irons</option><option>Putters</option><option>Wedges</option><option>Woods</option><option>Bags &amp; gear</option></select></div>
+          <div class="field"><label for="club-condition">Condition</label><select id="club-condition" name="condition"><option>Very good</option><option>Good</option><option>Well played</option><option>New</option></select></div>
+          <div class="field"><label for="club-price">Price (£)</label><input id="club-price" name="price" type="number" min="1" max="20000" step="1" required placeholder="150"></div>
+          <div class="field"><label for="club-location">UK location</label><input id="club-location" name="location" maxlength="40" required placeholder="e.g. Leeds"></div>
+        </div>
+        <button class="button button-dark" type="submit" style="width:100%">Preview listing</button>
+        <div class="status-message" id="sell-message" role="status"></div>
+      </form>
+    </div>
+  </dialog>
+
+  <script>
+    const categories = ["All clubs", "Drivers", "Irons", "Putters", "Wedges", "Woods", "Bags & gear"];
+    const demoPricing = { buyerFee: 2.50, standardDelivery: 5.95, pgaRoutePostage: 9.95, verification: 10 };
+    const sampleListings = [
+      { id: 1, name: "G430 MAX Driver", brand: "PING", category: "Drivers", condition: "Very good", price: 389, location: "Surrey", tone: "#e5ebdb", art: "driver" },
+      { id: 2, name: "P790 7-Iron", brand: "TaylorMade", category: "Irons", condition: "Good", price: 119, location: "Manchester", tone: "#e9e5d9", art: "iron" },
+      { id: 3, name: "Newport 2 Putter", brand: "Scotty Cameron", category: "Putters", condition: "Very good", price: 285, location: "Edinburgh", tone: "#e4e9e4", art: "putter" },
+      { id: 4, name: "Jaws Raw 56° Wedge", brand: "Callaway", category: "Wedges", condition: "Good", price: 84, location: "Bristol", tone: "#e9e2d4", art: "wedge" },
+      { id: 5, name: "Stealth 2 3-Wood", brand: "TaylorMade", category: "Woods", condition: "Very good", price: 179, location: "York", tone: "#e0e9e4", art: "wood" },
+      { id: 6, name: "Players 4 Stand Bag", brand: "Titleist", category: "Bags & gear", condition: "Good", price: 95, location: "Cardiff", tone: "#e8e4dc", art: "bag" }
+    ];
+    const artSvg = (type) => {
+      const shaft = '<path d="M105 30 180 230" stroke="#34483a" stroke-width="8" stroke-linecap="round"/><path d="m99 27 12 1" stroke="#1c2f25" stroke-width="11" stroke-linecap="round"/>';
+      const heads = {
+        driver: '<path d="M152 225c12-29 54-39 84-17 12 9 10 28-4 35-26 14-64 8-80-18Z" fill="#274b39" stroke="#c3d4b4" stroke-width="3"/><path d="M175 218c17-8 38-7 54 1" stroke="#87a275" stroke-width="3" stroke-linecap="round"/>',
+        iron: '<path d="M160 214c16-16 50-16 72-1l-9 24c-21 7-44 4-61-8l-2-15Z" fill="#aebbb0" stroke="#34483a" stroke-width="3"/><path d="m171 215 5 19m9-21 3 24m10-24 2 23m11-21-1 19" stroke="#6b7b70" stroke-width="2"/>',
+        putter: '<path d="m158 221 61-8 10 17-64 10-7-19Z" fill="#263e31" stroke="#a9bb9e" stroke-width="3"/><path d="m168 226 53-7" stroke="#84977f" stroke-width="2"/>',
+        wedge: '<path d="M162 215c16-17 44-16 61-1l-7 24c-19 6-37 3-53-8l-1-15Z" fill="#b9c3b9" stroke="#34483a" stroke-width="3"/><path d="m169 218 46 8m-43-1 41 8" stroke="#718174" stroke-width="2"/>',
+        wood: '<path d="M153 222c10-25 43-34 69-19 12 7 11 25-2 32-22 12-53 9-67-13Z" fill="#315540" stroke="#bbd0ac" stroke-width="3"/><path d="M171 216c16-7 32-6 44 1" stroke="#8ba57d" stroke-width="3" stroke-linecap="round"/>',
+        bag: '<path d="m153 92 48 0 10 138c-16 14-45 14-61 0l3-138Z" fill="#315540" stroke="#d0dbc7" stroke-width="4"/><path d="M155 105h47m-51 93h62M169 93V76h18v17" stroke="#bed0ae" stroke-width="4"/><path d="M166 122v51m15-51v51m15-51v51" stroke="#91a984" stroke-width="3"/>'
+      };
+      return '<svg viewBox="0 0 300 270" fill="none" aria-hidden="true">' +
+        '<ellipse cx="157" cy="238" rx="72" ry="12" fill="rgba(35,55,39,.1)"/>' +
+        (type === "bag" ? heads.bag : shaft + heads[type]) +
+        (type === "driver" || type === "wood" ? '<circle cx="107" cy="42" r="10" fill="#d8e79f"/>' : '') +
+        '</svg>';
+    };
+
+    const grid = document.getElementById("listing-grid");
+    const filters = document.getElementById("filters");
+    const searchInput = document.getElementById("search-input");
+    const listingDialog = document.getElementById("listing-dialog");
+    const sellDialog = document.getElementById("sell-dialog");
+    const verificationToggle = document.getElementById("verification-toggle");
+    const savedIds = new Set();
+    let activeCategory = "All clubs";
+    let searchTerm = "";
+    let savedOnly = false;
+    let currentListing = null;
+    let listings = sampleListings.map(item => ({ ...item, sample: true }));
+
+    const pounds = amount => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 2 }).format(amount);
+
+    function renderFilters() {
+      filters.innerHTML = categories.map(category =>
+        '<button class="chip' + (activeCategory === category ? ' active' : '') + '" type="button" data-category="' + category + '" aria-pressed="' + (activeCategory === category) + '">' + category + '</button>'
+      ).join("");
+    }
+
+    function renderListings() {
+      const shown = listings.filter(item => {
+        const matchesCategory = activeCategory === "All clubs" || item.category === activeCategory;
+        const text = (item.name + " " + item.brand + " " + item.category + " " + item.location).toLowerCase();
+        return matchesCategory && text.includes(searchTerm) && (!savedOnly || savedIds.has(item.id));
+      });
+      document.getElementById("result-count").textContent = savedOnly
+        ? shown.length + (shown.length === 1 ? " saved club" : " saved clubs")
+        : shown.length + (shown.length === 1 ? " club to explore" : " clubs to explore");
+      if (!shown.length) {
+        grid.innerHTML = '<div class="empty-state">' + (savedOnly ? 'No saved clubs yet. Tap the heart on a listing to keep it here.' : 'No clubs match that search. Try another name or category.') + '</div>';
+        return;
+      }
+      grid.innerHTML = shown.map(item => '<article class="listing">' +
+        '<div class="listing-visual" style="--tone:' + item.tone + '">' +
+          '<span class="condition-label">' + item.condition + '</span>' +
+          '<button class="icon-button save-button' + (savedIds.has(item.id) ? ' saved' : '') + '" type="button" data-save="' + item.id + '" aria-label="' + (savedIds.has(item.id) ? 'Remove saved club' : 'Save club') + '" aria-pressed="' + savedIds.has(item.id) + '">' +
+            '<svg viewBox="0 0 24 24" fill="' + (savedIds.has(item.id) ? 'currentColor' : 'none') + '" aria-hidden="true"><path d="M20.5 8.8c0 4.1-8.5 10-8.5 10s-8.5-5.9-8.5-10a4.5 4.5 0 0 1 8.5-2.1 4.5 4.5 0 0 1 8.5 2.1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>' +
+          '</button>' + artSvg(item.art) +
+        '</div>' +
+        '<div class="listing-info"><div class="listing-meta"><span class="category-label">' + item.category + '</span><span>' + (item.sample ? 'Example listing' : 'New listing') + '</span></div>' +
+          '<h3>' + escapeHtml(item.brand) + ' ' + escapeHtml(item.name) + '</h3><div class="listing-sub">' + escapeHtml(item.location) + ' · ' + escapeHtml(item.condition) + '</div>' +
+          '<div class="listing-bottom"><div><div class="listing-price">' + pounds(item.price) + '</div><div class="auth-available"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12 4 4 10-10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>PGA check available</div></div>' +
+          '<button class="details-link" type="button" data-listing="' + item.id + '">View details →</button></div>' +
+        '</div></article>').join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+    }
+
+    function renderBreakdown() {
+      if (!currentListing) return;
+      const verified = verificationToggle.checked;
+      const delivery = verified ? demoPricing.pgaRoutePostage : demoPricing.standardDelivery;
+      const buyerFee = demoPricing.buyerFee;
+      const verificationFee = verified ? demoPricing.verification : 0;
+      const rows = [
+        ["Club price", pounds(currentListing.price)],
+        ["Buyer service fee (demo)", pounds(buyerFee)],
+        [verified ? "PGA route postage (estimate)" : "Delivery (estimate)", pounds(delivery)]
+      ];
+      if (verified) rows.push(["PGA verification", pounds(verificationFee)]);
+      const total = currentListing.price + buyerFee + delivery + verificationFee;
+      document.getElementById("price-breakdown").innerHTML =
+        rows.map(row => '<div class="price-row"><span>' + row[0] + '</span><span>' + row[1] + '</span></div>').join("") +
+        '<div class="price-row total"><span>Estimated buyer total</span><span>' + pounds(total) + '</span></div>';
+    }
+
+    function openListing(id) {
+      currentListing = listings.find(item => item.id === Number(id));
+      if (!currentListing) return;
+      document.getElementById("listing-dialog-title").textContent = currentListing.brand + " " + currentListing.name;
+      document.getElementById("listing-dialog-subtitle").textContent = currentListing.category + " · " + pounds(currentListing.price);
+      document.getElementById("dialog-location").textContent = "Seller location: " + currentListing.location;
+      document.getElementById("dialog-condition").textContent = currentListing.condition;
+      document.getElementById("dialog-visual").style.setProperty("--tone", currentListing.tone);
+      document.getElementById("dialog-visual").innerHTML = artSvg(currentListing.art);
+      verificationToggle.checked = false;
+      document.getElementById("checkout-message").classList.remove("visible");
+      renderBreakdown();
+      listingDialog.showModal();
+    }
+
+    filters.addEventListener("click", event => {
+      const button = event.target.closest("[data-category]");
+      if (!button) return;
+      activeCategory = button.dataset.category;
+      savedOnly = false;
+      document.getElementById("saved-filter").classList.remove("saved");
+      renderFilters();
+      renderListings();
+    });
+
+    grid.addEventListener("click", event => {
+      const save = event.target.closest("[data-save]");
+      if (save) {
+        const id = Number(save.dataset.save);
+        savedIds.has(id) ? savedIds.delete(id) : savedIds.add(id);
+        renderListings();
+        return;
+      }
+      const details = event.target.closest("[data-listing]");
+      if (details) openListing(details.dataset.listing);
+    });
+
+    document.getElementById("search-form").addEventListener("submit", event => {
+      event.preventDefault();
+      searchTerm = searchInput.value.trim().toLowerCase();
+      savedOnly = false;
+      renderListings();
+      document.getElementById("market").scrollIntoView({ behavior: "smooth" });
+    });
+    searchInput.addEventListener("input", () => {
+      searchTerm = searchInput.value.trim().toLowerCase();
+      renderListings();
+    });
+
+    document.getElementById("saved-filter").addEventListener("click", event => {
+      savedOnly = !savedOnly;
+      event.currentTarget.classList.toggle("saved", savedOnly);
+      renderListings();
+      document.getElementById("market").scrollIntoView({ behavior: "smooth" });
+    });
+
+    document.querySelectorAll("[data-open-sell]").forEach(button => button.addEventListener("click", () => {
+      document.getElementById("sell-message").classList.remove("visible");
+      sellDialog.showModal();
+    }));
+    document.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", () => {
+      button.closest("dialog").close();
+    }));
+    verificationToggle.addEventListener("change", renderBreakdown);
+
+    document.getElementById("checkout-button").addEventListener("click", () => {
+      const message = document.getElementById("checkout-message");
+      message.textContent = "Test checkout only — no order has been placed and no payment has been taken. A real checkout will need confirmed postage, buyer fees, and PGA partner arrangements.";
+      message.classList.add("visible");
+    });
+
+    document.getElementById("sell-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      if (!form.reportValidity()) return;
+      const data = new FormData(form);
+      const category = data.get("category");
+      const artMap = { Drivers: "driver", Irons: "iron", Putters: "putter", Wedges: "wedge", Woods: "wood", "Bags & gear": "bag" };
+      const newListing = {
+        id: Date.now(),
+        name: String(data.get("name")).trim(),
+        brand: "Your club",
+        category,
+        condition: data.get("condition"),
+        price: Number(data.get("price")),
+        location: String(data.get("location")).trim(),
+        tone: "#e7ecdf",
+        art: artMap[category] || "iron",
+        sample: false
+      };
+      listings.unshift(newListing);
+      activeCategory = "All clubs";
+      savedOnly = false;
+      searchTerm = "";
+      searchInput.value = "";
+      renderFilters();
+      renderListings();
+      document.getElementById("sell-message").textContent = "Your sample listing is live in this preview. It isn’t saved after you close or refresh the page.";
+      document.getElementById("sell-message").classList.add("visible");
+      form.reset();
+      window.setTimeout(() => {
+        if (sellDialog.open) sellDialog.close();
+        document.getElementById("market").scrollIntoView({ behavior: "smooth" });
+      }, 1200);
+    });
+
+    renderFilters();
+    renderListings();
+  </script>
+</body>
+</html>
