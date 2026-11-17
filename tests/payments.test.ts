@@ -103,6 +103,7 @@ test('a paid event must match the order total before the order is confirmed', as
 test('settlement refunds and releases what the database has decided, and nothing else', async () => {
   const moved: string[] = [];
   const payments = {
+    accountReady: async (account: string) => account === 'acct_4',
     refund: async (o: OrderRow) => { moved.push(`refund ${o.id} ${o.total_pence}`); return 're_' + o.id; },
     transfer: async (o: OrderRow, account: string) => {
       if (o.id === 'broken') throw new Error('provider unavailable');
@@ -111,16 +112,20 @@ test('settlement refunds and releases what the database has decided, and nothing
   } as unknown as Payments;
   const admin = fakeAdmin({
     orders: [order('held', { funds: 'held', status: 'delivered' }), order('refund', { funds: 'refund_due', status: 'cancelled' }),
-      order('broken'), order('ready'), order('no-account', { seller_id: 's2' }), order('pending-account', { seller_id: 's3' })],
-    seller_accounts: [{ seller_id: 's1', provider_account: 'acct_1', payouts_enabled: true }, { seller_id: 's3', provider_account: 'acct_3', payouts_enabled: false }],
+      order('broken'), order('ready'), order('no-account', { seller_id: 's2' }), order('pending-account', { seller_id: 's3' }), order('missed-webhook', { seller_id: 's4' })],
+    seller_accounts: [{ seller_id: 's1', provider_account: 'acct_1', payouts_enabled: true }, { seller_id: 's3', provider_account: 'acct_3', payouts_enabled: false },
+      { seller_id: 's4', provider_account: 'acct_4', payouts_enabled: false }],
   });
   const result = await settleOrders(admin.client, payments);
   // The seller receives the item price plus delivery; the buyer fee stays with the platform.
-  assert.deepEqual(moved, ['refund refund 11165', 'transfer ready 10595 acct_1']);
-  assert.deepEqual([result.refunded, result.released, result.awaiting_payout_setup, result.failed], [1, 1, 2, 1]);
+  // 'missed-webhook': the seller finished onboarding but the status event never arrived; settlement re-checks.
+  assert.deepEqual(moved, ['refund refund 11165', 'transfer ready 10595 acct_1', 'transfer missed-webhook 10595 acct_4']);
+  assert.deepEqual([result.refunded, result.released, result.awaiting_payout_setup, result.failed], [1, 2, 2, 1]);
   assert.deepEqual(admin.calls, [{ rpc: 'order_sweep' },
     { rpc: 'order_system', p_action: 'refunded', p_order: 'refund', p_ref: 're_refund', p_event: null },
-    { rpc: 'order_system', p_action: 'released', p_order: 'ready', p_ref: 'tr_ready', p_event: null }]);
+    { table: 'seller_accounts', update: { payouts_enabled: true }, matched: 1 },
+    { rpc: 'order_system', p_action: 'released', p_order: 'ready', p_ref: 'tr_ready', p_event: null },
+    { rpc: 'order_system', p_action: 'released', p_order: 'missed-webhook', p_ref: 'tr_missed-webhook', p_event: null }]);
 });
 
 test('webhook endpoint bypasses the preview password but not signature checks', async () => {

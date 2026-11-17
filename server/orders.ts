@@ -77,9 +77,19 @@ export async function settleOrders(admin: SupabaseClient, payments: Payments) {
   }
   const releases = must(await admin.from('orders').select(columns).eq('funds', 'release_due').order('updated_at').limit(50), 'Release queue') as OrderRow[];
   if (releases.length) {
-    const accounts = must(await admin.from('seller_accounts').select('seller_id,provider_account').eq('payouts_enabled', true)
-      .in('seller_id', [...new Set(releases.map(order => order.seller_id))]), 'Payout accounts') as { seller_id: string; provider_account: string }[];
-    const accountBySeller = new Map(accounts.map(row => [row.seller_id, row.provider_account]));
+    const accounts = must(await admin.from('seller_accounts').select('seller_id,provider_account,payouts_enabled')
+      .in('seller_id', [...new Set(releases.map(order => order.seller_id))]), 'Payout accounts') as { seller_id: string; provider_account: string; payouts_enabled: boolean }[];
+    const accountBySeller = new Map<string, string>();
+    for (const row of accounts) {
+      // Money is waiting for this seller: ask the provider directly in case the status webhook was missed.
+      if (!row.payouts_enabled) {
+        try {
+          if (!await payments.accountReady(row.provider_account)) continue;
+          must(await admin.from('seller_accounts').update({ payouts_enabled: true }).eq('provider_account', row.provider_account), 'Payout account update');
+        } catch { continue; }
+      }
+      accountBySeller.set(row.seller_id, row.provider_account);
+    }
     for (const order of releases) {
       const account = accountBySeller.get(order.seller_id);
       if (!account) { result.awaiting_payout_setup++; continue; }

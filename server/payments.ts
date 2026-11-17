@@ -25,6 +25,8 @@ export type Payments = {
   transfer(order: OrderRow, account: string): Promise<string>;
   createSellerAccount(sellerId: string, email: string | undefined): Promise<string>;
   onboardingLink(account: string, origin: string): Promise<string>;
+  /** Asks the provider directly whether the seller can receive transfers yet. */
+  accountReady(account: string): Promise<boolean>;
 };
 
 export const sellerAmount = (order: Pick<OrderRow, 'item_pence' | 'delivery_pence'>) => order.item_pence + order.delivery_pence;
@@ -118,15 +120,25 @@ export function stripePayments(secretKey: string, ...webhookSecrets: string[]): 
       return transfer.id;
     },
     async createSellerAccount(sellerId, email) {
-      const account = await stripe.accounts.create({ type: 'express', country: 'GB', email, business_type: 'individual',
-        capabilities: { transfers: { requested: true } }, metadata: { seller_id: sellerId } },
-        { idempotencyKey: `seller-${sellerId}` });
+      // Accounts v2 "recipient": the seller only receives transfers; Re-Golf is the merchant.
+      // Stripe hosts onboarding and identity checks and gives the seller an Express dashboard.
+      const account = await stripe.v2.core.accounts.create({
+        contact_email: email, dashboard: 'express',
+        identity: { country: 'gb', entity_type: 'individual' },
+        configuration: { recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } } },
+        defaults: { currency: 'gbp', responsibilities: { fees_collector: 'application', losses_collector: 'application' } },
+        metadata: { seller_id: sellerId },
+      }, { idempotencyKey: `seller-${sellerId}` });
       return account.id;
     },
     async onboardingLink(account, origin) {
-      const link = await stripe.accountLinks.create({ account, type: 'account_onboarding',
-        refresh_url: `${origin}/?payouts=retry`, return_url: `${origin}/?payouts=done` });
+      const link = await stripe.v2.core.accountLinks.create({ account, use_case: { type: 'account_onboarding',
+        account_onboarding: { refresh_url: `${origin}/?payouts=retry`, return_url: `${origin}/?payouts=done` } } });
       return link.url;
+    },
+    async accountReady(account) {
+      const found = await stripe.v2.core.accounts.retrieve(account, { include: ['configuration.recipient'] });
+      return found.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status === 'active';
     },
   };
 }

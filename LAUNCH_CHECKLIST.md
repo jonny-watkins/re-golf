@@ -68,17 +68,17 @@ The database decides what should happen to the money; the server carries it out 
 
 ## 3. Stripe integration (test mode)
 
-Built and unit-tested, but **not yet run against Stripe** — no keys were available. Expect small fixes on first contact.
+Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct total, GB address, 31-minute expiry, idempotent), checkout expiry, refund, seller account creation and onboarding link, both webhook signing secrets on the deployed preview. Not yet verified: a full purchase through the app (needs the orders migration), seller onboarding completion and a real transfer.
 
 - [x] [D] Hosted Stripe Checkout created server-side from the reserved order; collects the UK delivery address; expires before the reservation does.
 - [x] [D] Webhook `/api/stripe/webhook`: signature verified on the raw body, amount and currency checked against the order, events de-duplicated. Exempt from the preview password.
 - [x] [D] Settlement runs inside the web server every 5 minutes: applies deadlines, refunds `refund_due`, transfers `release_due` to sellers with payouts enabled. Idempotency key per order and action.
-- [x] [D] Seller payout onboarding (Stripe Express account + hosted onboarding link); `account.updated` keeps payout status current.
+- [x] [D] Seller payout onboarding (Stripe Accounts v2 "recipient" with Express dashboard + hosted onboarding link); `account.updated` keeps payout status current, and settlement re-checks with Stripe when money is waiting.
 - [x] [D] Card dispute (`charge.dispute.created`) freezes an order whose funds are still held.
 - [x] [D] Live keys refused unless `ALLOW_LIVE_PAYMENTS=true`.
-- [ ] [J] **Create a Stripe account and enable Connect** (test mode is enough to start).
-- [ ] [J] In Stripe test mode, add a webhook endpoint for `https://re-golf-development.onrender.com/api/stripe/webhook` **twice** (Stripe allows one scope per destination), both with snapshot payloads: scope "Your account" with `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.dispute.created`; and scope "Connected accounts" with `account.updated`.
-- [ ] [J] Put `STRIPE_SECRET_KEY` (sk_test_…) `STRIPE_WEBHOOK_SECRET` (whsec_… of the "Your account" destination) and `STRIPE_CONNECT_WEBHOOK_SECRET` (whsec_… of the "Connected accounts" destination) into Render and local `.env`. Never into chat or the repository.
+- [x] [J] Stripe sandbox created, Connect enabled ("you collect payments and pay recipients").
+- [x] [J] In Stripe test mode, add a webhook endpoint for `https://re-golf-development.onrender.com/api/stripe/webhook` **twice** (Stripe allows one scope per destination), both with snapshot payloads: scope "Your account" with `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.dispute.created`; and scope "Connected accounts" with `account.updated`.
+- [x] [J]/[D] Put `STRIPE_SECRET_KEY` (sk_test_…) `STRIPE_WEBHOOK_SECRET` (whsec_… of the "Your account" destination) and `STRIPE_CONNECT_WEBHOOK_SECRET` (whsec_… of the "Connected accounts" destination) into Render and local `.env`. Never into chat or the repository.
 - [ ] [J]/[D] Apply migration `20261117150000_orders_escrow.sql` to the development database, then turn buying on: `update private.marketplace_settings set checkout_enabled = true;`
 - [ ] [D] Hosted acceptance with Stripe test cards: success, declined card, abandoned checkout, two simultaneous buyers, duplicate webhook, late webhook, refund for non-dispatch, dispute then refund, release after hold, seller onboarding then payout.
 - [ ] [D] Charge refunded or disputed **after** release: reverse the transfer and record it (not built).
