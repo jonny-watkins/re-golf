@@ -21,6 +21,6 @@ test('private preview gates content, keeps health available and preserves JWT au
     assert.ok(!(await access.text()).includes(password));
     const api = await fetch(base + '/api/config', { headers: { Cookie: cookie.split(';')[0], Authorization: 'Bearer test-jwt' } });
     assert.equal(api.status, 200); assert.equal(api.headers.get('x-robots-tag'), 'noindex, nofollow');
-    assert.equal((await fetch(base + '/api/config', { headers: { Cookie: 're_golf_preview='+'x'.repeat(64) } })).status, 401);
+    assert.equal((await fetch(base + '/api/config', { headers: { Cookie: 'relofted_preview='+'x'.repeat(64) } })).status, 401);
   } finally { server.closeAllConnections(); await new Promise<void>(r => server.close(()=>r())); }
 });

@@ -16,7 +16,7 @@ const config = readConfig(env as NodeJS.ProcessEnv);
 assert.ok(config.stripeSecretKey.startsWith('sk_test_'), 'Stripe test keys only');
 const base = 'https://re-golf-development.onrender.com';
 const previewPassword = dotenv.parse(readFileSync('.env.render-preview')).PREVIEW_ACCESS_PASSWORD;
-const cookie = { Cookie: 're_golf_preview=' + createHash('sha256').update(previewPassword).digest('hex') };
+const cookie = { Cookie: 'relofted_preview=' + createHash('sha256').update(previewPassword).digest('hex') };
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const admin = createClient(config.supabaseUrl, config.storageSecret, options);
 const stripe = new Stripe(config.stripeSecretKey);
@@ -128,7 +128,7 @@ try {
 
   step('genuine Stripe webhook marks the order paid and funds held');
   await buyerPage.locator('#orders-dialog[open]').waitFor({ timeout: 30_000 });
-  await refreshOrders(buyerPage, /Paid. Re-Golf is holding your payment/);
+  await refreshOrders(buyerPage, /Paid. Relofted is holding your payment/);
   await snap(buyerPage, 'buyer-paid');
   let order = (await dbOrder())!;
   assert.deepEqual([order.status, order.funds], ['paid', 'held']);
@@ -167,7 +167,7 @@ try {
   assert.ok(Math.abs((Date.parse(order.release_at) - Date.now()) / 3_600_000 - 48) < 0.1, 'hold is 48 hours');
   await snap(buyerPage, 'buyer-hold');
   await purchase.getByRole('button', { name: 'All good — pay the seller now' }).click();
-  await purchase.filter({ hasText: 'Complete. Thank you for buying on Re-Golf.' }).waitFor();
+  await purchase.filter({ hasText: 'Complete. Thank you for buying on Relofted.' }).waitFor();
   order = (await dbOrder())!;
   assert.deepEqual([order.status, order.funds], ['completed', 'release_due']);
 

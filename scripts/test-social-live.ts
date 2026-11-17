@@ -23,7 +23,7 @@ const remote = process.env.TEST_BASE_URL;
 if (remote) assert.equal(remote, 'https://re-golf-development.onrender.com');
 const previewPassword = remote ? dotenv.parse(await readFile('.env.render-preview')).PREVIEW_ACCESS_PASSWORD : '';
 if (remote) assert.ok(previewPassword);
-const previewHeaders = previewPassword ? { Cookie: `re_golf_preview=${createHash('sha256').update(previewPassword).digest('hex')}` } : {};
+const previewHeaders = previewPassword ? { Cookie: `relofted_preview=${createHash('sha256').update(previewPassword).digest('hex')}` } : {};
 const base = remote || `http://127.0.0.1:${(server.address() as {port:number}).port}`; config.origin = base;
 let stage = 'fixtures', browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 const check = (result: {error: unknown}) => { assert.equal(!!result.error,false); };

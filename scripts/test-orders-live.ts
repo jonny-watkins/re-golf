@@ -23,7 +23,7 @@ const config = readConfig(env as NodeJS.ProcessEnv);
 assert.ok(config.stripeSecretKey.startsWith('sk_test_'), 'Stripe test keys only');
 const base = 'https://re-golf-development.onrender.com';
 const previewPassword = dotenv.parse(readFileSync('.env.render-preview')).PREVIEW_ACCESS_PASSWORD;
-const cookie = { Cookie: 're_golf_preview=' + createHash('sha256').update(previewPassword).digest('hex') };
+const cookie = { Cookie: 'relofted_preview=' + createHash('sha256').update(previewPassword).digest('hex') };
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const admin = createClient(config.supabaseUrl, config.storageSecret, options);
 const stripe = new Stripe(config.stripeSecretKey);

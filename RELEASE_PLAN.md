@@ -1,4 +1,4 @@
-# Re Golf release plan
+# Relofted release plan
 
 Development hosting decision — 17 November 2026: defer paid automatic cleanup until release readiness. Use `npm run photos:cleanup` manually during development. Hosted cleanup acceptance passed with disposable uploads: an aged unfinished upload was removed, a three-week-old completed photo and fresh unfinished upload were retained, existing ready-photo records were unchanged, and a repeat run was safe. The test simulates age by backdating only its own fixtures. A local regression test verifies failed Storage deletion retains the queue for a successful retry. No paid scheduler is provisioned; adding billing is not a development prerequisite. This decision supersedes earlier billing-next-step instructions. Repeat hosted acceptance with `TEST_PROJECT` set to the development project and `npx tsx scripts/test-cleanup-live.ts`.
 
@@ -8,7 +8,7 @@ Latest security update, 17 November: function-permission hardening is applied to
 
 Updated: 17 November 2026. Status: password-protected Render development preview deployed and authentication callbacks verified; invitation readiness remains pending. Not a public marketplace launch.
 
-Release Re-Golf in three steps: a private listing preview, an invited transaction pilot, and a public UK marketplace. Public purchases should open only after payments, delivery, refunds, seller payouts, and support have worked end to end.
+Release Relofted in three steps: a private listing preview, an invited transaction pilot, and a public UK marketplace. Public purchases should open only after payments, delivery, refunds, seller payouts, and support have worked end to end.
 
 This plan defines release gates and rollout responsibilities. [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) remains the detailed implementation checklist; [SETUP.md](SETUP.md) contains setup and account acceptance checks.
 

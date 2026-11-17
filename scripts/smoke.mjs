@@ -36,7 +36,7 @@ try {
   assert.equal(page.status, 200);
   assert.match(page.headers.get('content-security-policy') || '', /script-src 'self'/);
   const html = await page.text();
-  assert.match(html, /Re-Golf/);
+  assert.match(html, /Relofted/);
   const asset = html.match(/src="(\/assets\/[^\"]+\.js)"/);
   assert.ok(asset, 'Built JavaScript asset must be referenced');
   assert.equal((await fetch(origin + asset[1])).status, 200);

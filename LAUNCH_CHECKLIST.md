@@ -1,4 +1,4 @@
-# Re-Golf launch checklist
+# Relofted launch checklist
 
 Created 17 November 2026 from a full review of the code and of DEVELOPMENT_PLAN.md / RELEASE_PLAN.md.
 Goal: a publishable UK marketplace where the buyer's payment is held and released to the seller a few days after delivery (the Vinted model).
@@ -34,7 +34,7 @@ What stands between this and a publishable app:
 
 Decided 17 November 2026:
 
-- [x] **Payment provider: Stripe Connect**, "separate charges and transfers". The buyer pays Re-Golf's Stripe platform account; the money stays in the platform balance during the hold; the server then transfers the seller's share to their connected account. Chargebacks fall on the platform.
+- [x] **Payment provider: Stripe Connect**, "separate charges and transfers". The buyer pays Relofted's Stripe platform account; the money stays in the platform balance during the hold; the server then transfers the seller's share to their connected account. Chargebacks fall on the platform.
 - [x] **Fee: £0.70 + 5% of the item price**, paid by the buyer (database setting, changeable without code).
 - [x] **Hold rules** (database settings): checkout reservation 35 min; seller must post within 5 days or the buyer is refunded automatically; if the buyer never confirms, the item counts as delivered 10 days after posting; **payment is released 48 hours after delivery** unless the buyer reports a problem; the buyer can release early.
 - [x] **Delivery: tracked postage always.** The seller arranges it and must enter carrier and tracking number to mark an order posted. The buyer pays a fixed delivery charge (£5.95 setting) which is passed to the seller with the item price.
@@ -105,7 +105,7 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 
 ## 5. Notifications and email [D]/[J]
 
-- [ ] [J] Custom SMTP sender on a Re-Golf domain (Supabase's default sender is for testing only and heavily rate-limited). Needs the domain from section 8.
+- [ ] [J] Custom SMTP sender on a Relofted domain (Supabase's default sender is for testing only and heavily rate-limited). Needs the domain from section 8.
 - [ ] Transactional emails: order paid (to seller, with dispatch deadline), dispatched, delivered/hold started, released, refunded, issue opened.
 - [ ] New-message notification email (currently messages only appear on manual refresh).
 
@@ -119,7 +119,7 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 ## 7. Legal and policy [J] — get these reviewed; this list is not legal advice
 
 - [ ] Terms, privacy notice, buyer-protection/refund policy, prohibited items, counterfeit reporting.
-- [ ] HMRC digital-platform reporting: UK platforms must collect and report seller details and earnings. Stripe onboarding collects most of the identity data; reporting remains Re-Golf's duty.
+- [ ] HMRC digital-platform reporting: UK platforms must collect and report seller details and earnings. Stripe onboarding collects most of the identity data; reporting remains Relofted's duty.
 - [ ] Online Safety Act: private messaging between users brings an illegal-content risk assessment duty.
 - [ ] ICO registration and a data-retention schedule (order records kept for tax purposes vs. profile deletion).
 - [ ] Company/trading entity and business bank account for the Stripe platform account.

@@ -26,18 +26,18 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     // The payment provider cannot supply the preview password; its requests are verified by signature instead.
     if (req.path === '/api/stripe/webhook' && req.method === 'POST') { next(); return; }
     // A separate header/cookie is needed for API calls, whose Authorization header carries the Supabase JWT.
-    const supplied = req.headers.cookie?.split(';').map(value => value.trim()).find(value => value.startsWith('re_golf_preview='))?.slice('re_golf_preview='.length);
+    const supplied = req.headers.cookie?.split(';').map(value => value.trim()).find(value => value.startsWith('relofted_preview='))?.slice('relofted_preview='.length);
     const expected = createHash('sha256').update(config.previewPassword).digest('hex');
     if (supplied && /^[a-f0-9]{64}$/.test(supplied) && timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) { next(); return; }
     const authorization = req.get('authorization') || '';
     const basic = authorization.startsWith('Basic ') ? Buffer.from(authorization.slice(6), 'base64').toString() : '';
     const valid = timingSafeEqual(createHash('sha256').update(basic).digest(), createHash('sha256').update(`preview:${config.previewPassword}`).digest());
     if (valid) {
-      res.cookie('re_golf_preview', expected, { httpOnly: true, secure: config.origin.startsWith('https:'), sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000, path: '/' });
+      res.cookie('relofted_preview', expected, { httpOnly: true, secure: config.origin.startsWith('https:'), sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000, path: '/' });
       next(); return;
     }
     res.set('Cache-Control', 'no-store');
-    res.set('WWW-Authenticate', 'Basic realm="Re-Golf private preview", charset="UTF-8"');
+    res.set('WWW-Authenticate', 'Basic realm="Relofted private preview", charset="UTF-8"');
     res.status(401).send('Private development preview. Enter the preview access details supplied by the project owner.');
   });
   app.use(helmet({

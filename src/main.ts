@@ -18,7 +18,7 @@ type Card = Listing & { sample?: boolean };
 const examples: Card[] = sampleListings.map(item => ({
   id: `example-${item.id}`, seller_id: '', name: item.name, brand: item.brand, category: item.category as Listing['category'],
   condition: item.condition as Listing['condition'], price_pence: Math.round(item.price * 100), location: item.location,
-  description: 'This is an example listing to preview Re-Golf. It is not for sale.', status: 'active', created_at: '', updated_at: '', sample: true,
+  description: 'This is an example listing to preview Relofted. It is not for sale.', status: 'active', created_at: '', updated_at: '', sample: true,
   handedness: null, shaft_flex: null, loft: null,
 }));
 let auth: SupabaseClient | null = null;
@@ -54,7 +54,7 @@ const support = setupAdmin(api, () => session?.user.id);
 let pricing: { feeFixedPence: number; feeBps: number; deliveryPence: number } | null = null;
 const withFee = (pence: number) => pence + pricing!.feeFixedPence + Math.round(pence * pricing!.feeBps / 10000);
 let quotedListing = '';
-const holdNote = 'Re-Golf holds your payment until you have received the item and had time to check it. The seller is paid only after that.';
+const holdNote = 'Relofted holds your payment until you have received the item and had time to check it. The seller is paid only after that.';
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
@@ -263,7 +263,7 @@ function openAuth(mode: typeof authMode = 'signin') {
   el('account-email').textContent = session?.user.email || '';
   const headings = { signin: 'Sign in', signup: 'Create account', reset: 'Reset password', update: 'Choose a new password' };
   el('auth-title').textContent = signedIn ? 'Your account' : headings[mode];
-  el('auth-intro').textContent = signedIn ? 'Manage your Re-Golf account.' : mode === 'signup' ? 'Create an account to list your clubs. Confirm your email before signing in.' : mode === 'reset' ? 'We’ll email you a password reset link.' : mode === 'update' ? 'Choose a password with at least 12 characters.' : 'Welcome back to Re-Golf.';
+  el('auth-intro').textContent = signedIn ? 'Manage your Relofted account.' : mode === 'signup' ? 'Create an account to list your clubs. Confirm your email before signing in.' : mode === 'reset' ? 'We’ll email you a password reset link.' : mode === 'update' ? 'Choose a password with at least 12 characters.' : 'Welcome back to Relofted.';
   el('display-name-field').hidden = mode !== 'signup';
   el<HTMLInputElement>('display-name').required = mode === 'signup';
   el('email-field').hidden = mode === 'update';

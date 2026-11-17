@@ -1,4 +1,4 @@
-# Re Golf development and launch plan
+# Relofted development and launch plan
 
 Development hosting decision — 17 November 2026: defer paid automatic cleanup until release readiness. Use `npm run photos:cleanup` manually during development. Hosted cleanup acceptance passed with disposable uploads: an aged unfinished upload was removed, a three-week-old completed photo and fresh unfinished upload were retained, existing ready-photo records were unchanged, and a repeat run was safe. The test simulates age by backdating only its own fixtures. A local regression test verifies failed Storage deletion retains the queue for a successful retry. No paid scheduler is provisioned; adding billing is not a development prerequisite. This decision supersedes earlier billing-next-step instructions. Repeat hosted acceptance with `TEST_PROJECT` set to the development project and `npx tsx scripts/test-cleanup-live.ts`.
 
@@ -18,7 +18,7 @@ Persistent favourites and private listing conversations with blocking/reporting 
 
 Next milestone: a private listing preview for 5–10 trusted golfers, purchases disabled. Function-permission hardening is applied and verified: 44 local tests, TypeScript, and fresh Render social/photo acceptance passed. GitHub publication and Render deployment are complete. Remaining work: hourly photo cleanup scheduling, remaining email checks and assigning report review before invitations. Public deployment and paid resources need separate authorization. See the latest SETUP.md record; it supersedes historical pending notes.
 
-Build Re-Golf into a marketplace where golfers buy and sell directly. Sellers list for free and receive the agreed item price; buyers pay the Re-Golf fee and delivery, plus optional verification when available. Start with a mobile-friendly web app published at a custom domain. Native iPhone and Android apps are a later phase.
+Build Relofted into a marketplace where golfers buy and sell directly. Sellers list for free and receive the agreed item price; buyers pay the Relofted fee and delivery, plus optional verification when available. Start with a mobile-friendly web app published at a custom domain. Native iPhone and Android apps are a later phase.
 
 This is the working checklist for implementation. Tick items only when the acceptance checks pass, and record decisions and outstanding issues as work progresses.
 
@@ -34,11 +34,11 @@ The original demo used a £2.50 buyer fee, £5.95 standard delivery, £9.95 veri
 
 ## Agreed product rules
 
-- Buyers and sellers transact directly through Re-Golf.
+- Buyers and sellers transact directly through Relofted.
 - Listing and ordinary selling are free; the buyer pays the platform fee.
-- Sellers receive the agreed item price. Payment-provider costs must be accounted for in Re-Golf's margins.
+- Sellers receive the agreed item price. Payment-provider costs must be accounted for in Relofted's margins.
 - Show the buyer the full breakdown before payment, including any verification route costs.
-- Use Vinted as a product reference, while creating Re-Golf's own design, policies, and implementation.
+- Use Vinted as a product reference, while creating Relofted's own design, policies, and implementation.
 - Keep fee settings configurable and save the exact amounts against each order.
 - A buyer cannot buy their own listing or purchase an item already reserved or sold.
 - Seller payment becomes eligible only after the required order completion checks. The payment provider must support the chosen payout flow.

@@ -55,7 +55,7 @@ export function stripePayments(secretKey: string, ...webhookSecrets: string[]): 
         metadata: { order_id: order.id },
         payment_intent_data: { transfer_group: order.id, metadata: { order_id: order.id } },
         line_items: [line(order.title, order.item_pence),
-          ...(order.fee_pence ? [line('Re-Golf buyer protection fee', order.fee_pence)] : []),
+          ...(order.fee_pence ? [line('Relofted buyer protection fee', order.fee_pence)] : []),
           ...(order.delivery_pence ? [line('Tracked delivery', order.delivery_pence)] : [])],
         shipping_address_collection: { allowed_countries: ['GB'] },
         // Fixed from the order's creation time so a retry sends identical parameters.
@@ -131,7 +131,7 @@ export function stripePayments(secretKey: string, ...webhookSecrets: string[]): 
       return reversal.id;
     },
     async createSellerAccount(sellerId, email) {
-      // Accounts v2 "recipient": the seller only receives transfers; Re-Golf is the merchant.
+      // Accounts v2 "recipient": the seller only receives transfers; Relofted is the merchant.
       // Stripe hosts onboarding and identity checks and gives the seller an Express dashboard.
       const account = await stripe.v2.core.accounts.create({
         contact_email: email, dashboard: 'express',

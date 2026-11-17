@@ -54,15 +54,15 @@ export function setupOrders(api: Api, user: () => string | undefined, signIn: ()
     if (expired || order.status === 'expired') return order.funds === 'none' ? 'Checkout expired. Nothing was charged.' : 'Checkout expired; your payment is being refunded.';
     switch (order.status) {
       case 'awaiting_payment': return buying ? `Reserved for you until ${when(order.expires_at)}. Not yet paid.` : 'A buyer is at the checkout.';
-      case 'paid': return buying ? `Paid. Re-Golf is holding your payment. The seller must post it by ${when(order.dispatch_by!)} or you are refunded automatically.`
-        : `Sold. The buyer's payment is held by Re-Golf. Post it with tracking by ${when(order.dispatch_by!)} or the order is refunded.`;
+      case 'paid': return buying ? `Paid. Relofted is holding your payment. The seller must post it by ${when(order.dispatch_by!)} or you are refunded automatically.`
+        : `Sold. The buyer's payment is held by Relofted. Post it with tracking by ${when(order.dispatch_by!)} or the order is refunded.`;
       case 'dispatched': return buying ? 'Posted. Your payment stays held until you have received the item and had time to check it.'
         : 'Posted. You are paid after the buyer receives the item and the checking period ends.';
       case 'delivered': return buying ? `Received. Check your item: the seller is paid on ${when(order.release_at!)} unless you report a problem first.`
         : `Delivered. Your payment is released on ${when(order.release_at!)} unless the buyer reports a problem.`;
-      case 'disputed': return 'A problem was reported. The payment is frozen while Re-Golf support reviews it.';
+      case 'disputed': return 'A problem was reported. The payment is frozen while Relofted support reviews it.';
       case 'completed':
-        if (buying) return 'Complete. Thank you for buying on Re-Golf.';
+        if (buying) return 'Complete. Thank you for buying on Relofted.';
         if (order.funds === 'released') return 'Complete. Your payment has been sent to your payout account.';
         return payoutsEnabled ? 'Complete. Your payment is on its way to your payout account.' : 'Complete. Set up payouts above to receive your payment.';
       case 'cancelled':

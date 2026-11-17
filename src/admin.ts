@@ -15,7 +15,7 @@ export function setupAdmin(api: Api, user: () => string | undefined) {
   const when = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
   let admin = false, busy = false, generation = 0;
   let names = new Map<string, string>();
-  const name = (id: string | null) => id ? `${names.get(id) || 'Member'} (${id.slice(0, 8)})` : 'Re-Golf system';
+  const name = (id: string | null) => id ? `${names.get(id) || 'Member'} (${id.slice(0, 8)})` : 'Relofted system';
 
   function add<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tag: K, text = '', className = '') {
     const node = document.createElement(tag);
@@ -89,7 +89,7 @@ export function setupAdmin(api: Api, user: () => string | undefined) {
       const open = data.settings.checkout_enabled;
       add(checkout, 'p', open ? 'Buying is ON. New purchases are accepted.' : 'Buying is OFF. Existing orders, refunds and payouts continue.');
       button(checkout, open ? 'Pause all new purchases' : 'Turn buying back on', async () => {
-        const note = reason(open ? 'Pause all new purchases across Re-Golf?' : 'Allow new purchases again?');
+        const note = reason(open ? 'Pause all new purchases across Relofted?' : 'Allow new purchases again?');
         if (!note) return;
         await post('/api/admin/checkout', { enabled: !open, note });
         await load();

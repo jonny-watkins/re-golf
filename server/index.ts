@@ -23,7 +23,7 @@ if (built) {
   app.use(vite.middlewares);
 }
 const server = app.listen(config.port, config.host, () => {
-  console.log(`Re-Golf: ${config.origin}`);
+  console.log(`Relofted: ${config.origin}`);
   console.log(config.supabaseUrl ? 'Supabase configured. Apply the migration before using listings.' : 'Setup needed: follow SETUP.md to connect accounts and saved listings.');
 });
 

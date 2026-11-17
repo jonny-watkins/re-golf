@@ -1,4 +1,4 @@
-# re-golf
+# Relofted
 
 A golf equipment marketplace with direct buying and selling and buyer-paid platform fees.
 
