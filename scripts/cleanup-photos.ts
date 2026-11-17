@@ -1,9 +1,8 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { readConfig } from '../server/config.js';
+import { readCleanupConfig } from '../server/cleanup-config.js';
 
-const config = readConfig(process.env);
-if (!config.storageSecret) throw new Error('Set the server-only SUPABASE_STORAGE_SECRET before running cleanup.');
+const config = readCleanupConfig(process.env);
 const db = createClient(config.supabaseUrl, config.storageSecret, { auth: { persistSession: false, autoRefreshToken: false } });
 const pruned = await db.rpc('prune_pending_photos');
 if (pruned.error) throw new Error('Could not prune pending photos. Check the migration.');

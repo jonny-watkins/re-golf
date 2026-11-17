@@ -2,6 +2,8 @@
 
 Updated: 17 November 2026
 
+Cleanup scheduling update: hourly Render configuration is prepared in `render-cleanup.yaml`; standalone cleanup configuration and all 46 tests/TypeScript pass. Render validation is blocked by `need_payment_info`. No paid job exists yet. The owner must add workspace payment details before deployment and first-run verification.
+
 ## Latest verified position — 17 November 2026
 
 Hosting update: the password-protected Render Free preview is live at https://re-golf-development.onrender.com, running commit `86c6807`. HTTPS protection, real Supabase reads, multi-account/headless social acceptance and photo upload/download/removal passed on the deployed host. GitHub publication and initial deployment are complete. The owner saved Supabase redirect settings; generated confirmation and recovery links passed headless acceptance on Render, including password change/sign-in and reuse rejection. Hourly cleanup and invitation readiness remain pending. See SETUP.md for access and validation. This update supersedes older hosting-pending statements below.

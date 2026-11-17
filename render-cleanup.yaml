@@ -1,0 +1,21 @@
+# Optional paid cron service. Creating it incurs Render's $1/month minimum.
+# Separate from the free web preview; apply only after cost approval.
+services:
+  - type: cron
+    name: re-golf-photo-cleanup
+    runtime: node
+    region: frankfurt
+    plan: 0.5c-512mb
+    repo: https://github.com/jonny-watkins/re-golf
+    branch: main
+    schedule: "0 * * * *"
+    buildCommand: npm ci --include=dev
+    startCommand: npm run photos:cleanup
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_STORAGE_SECRET
+        sync: false

@@ -1,5 +1,7 @@
 # Re Golf release plan
 
+Hourly cleanup preparation: configuration and regression checks are complete (46 tests and TypeScript pass). Render validation reports `need_payment_info`; scheduling and first hosted run remain blocked until workspace billing is configured. No paid cron resource has been created.
+
 Latest security update, 17 November: function-permission hardening is applied to the development database and verified with 44 local tests, TypeScript and fresh Render social/photo checks. Existing accounts and listings are preserved. This supersedes permission-hardening pending statements below. Hourly photo cleanup remains pending.
 
 Updated: 17 November 2026. Status: password-protected Render development preview deployed and authentication callbacks verified; invitation readiness remains pending. Not a public marketplace launch.

@@ -1,5 +1,13 @@
 # Connect Re Golf accounts and listings
 
+## Hourly cleanup prepared — 17 November 2026
+
+The optional `render-cleanup.yaml` defines `re-golf-photo-cleanup` in Frankfurt: Node, `0.5c-512mb`, schedule `0 * * * *` (UTC), build `npm ci --include=dev`, command `npm run photos:cleanup`, manual deploys. It needs only SUPABASE_URL and the server-only SUPABASE_STORAGE_SECRET. The cleanup configuration is now independent of the website's origin, publishable key and preview password.
+
+All 46 tests and TypeScript passed. Render's Blueprint validation endpoint returned `valid: false` with `need_payment_info` as its only reported error. No cron service was created. Add payment details in the existing Render workspace before retrying validation and deployment. Confirm the recurring cost with the owner: minimum $1/month per job, smallest plan $0.00016 per active minute, prorated by the second (https://render.com/docs/cronjobs and https://render.com/pricing, checked 17 November 2026).
+
+After billing is available: revalidate, publish this revision, create only the cleanup service, copy the two credentials privately, verify its build, trigger one run, check successful exit and queue drainage, and confirm existing ready photos/listings remain. The file is a deployment specification; no Blueprint sync is currently attached. Existing web hosting stays manually deployed. Cleanup removes unfinished uploads older than an hour and retries queued deleted objects; it never expires listings or completed photos.
+
 ## Function permissions hardened — 17 November 2026
 
 Applied `20261117120902_harden_function_permissions.sql` to the existing development database through the Supabase plugin. Explicit EXECUTE grants were removed from PUBLIC, anon and authenticated for the profile, updated-at and photo-cleanup trigger functions; anonymous execution of the seller-verification helper was removed. Authenticated execution of that current-user-only boolean check remains required by listing RLS and social-write guards. Server photo-management and pruning access is preserved. No account or listing data was changed by the migration.
