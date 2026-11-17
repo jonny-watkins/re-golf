@@ -6,9 +6,13 @@
  * quoted-value syntax. Nothing from the query can add a filter or a column.
  */
 export function searchFilters(query: string, columns = ['name', 'brand', 'description']): string[] {
-  return query.split(/\s+/).filter(Boolean).slice(0, 6).map(word => {
-    const like = word.replace(/[\\%_]/g, '\\$&');
-    const quoted = `"%${like.replace(/[\\"]/g, '\\$&')}%"`;
-    return columns.map(column => `${column}.ilike.${quoted}`).join(',');
-  });
+  return query
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 6)
+    .map(word => {
+      const like = word.replace(/[\\%_]/g, '\\$&');
+      const quoted = `"%${like.replace(/[\\"]/g, '\\$&')}%"`;
+      return columns.map(column => `${column}.ilike.${quoted}`).join(',');
+    });
 }

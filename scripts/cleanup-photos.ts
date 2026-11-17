@@ -4,6 +4,8 @@ import { readCleanupConfig } from '../server/cleanup-config.js';
 import { cleanupPhotos } from '../server/photo-cleanup.js';
 
 const config = readCleanupConfig(process.env);
-const db = createClient(config.supabaseUrl, config.storageSecret, { auth: { persistSession: false, autoRefreshToken: false } });
+const db = createClient(config.supabaseUrl, config.storageSecret, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 const count = await cleanupPhotos(db);
 console.log(`Photo cleanup complete: ${count} objects removed.`);

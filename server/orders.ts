@@ -5,10 +5,19 @@ import { SocialError } from './social.js';
 import type { OrderRow, PaymentEvent, Payments } from './payments.js';
 
 type Authenticate = (req: Request) => Promise<{ db: SupabaseClient; user: User }>;
-const orderColumns = 'id,listing_id,buyer_id,seller_id,title,item_pence,fee_pence,delivery_pence,total_pence,status,funds,expires_at,paid_at,dispatch_by,dispatched_at,tracking,delivered_at,release_at,completed_at,issue,created_at';
+const orderColumns =
+  'id,listing_id,buyer_id,seller_id,title,item_pence,fee_pence,delivery_pence,total_pence,status,funds,expires_at,paid_at,dispatch_by,dispatched_at,tracking,delivered_at,release_at,completed_at,issue,created_at';
 
 // The database functions raise short, user-safe messages with these codes.
-const statusByCode: Record<string, number> = { '55000': 503, '42501': 403, 'P0002': 404, '23505': 409, '23514': 409, '22023': 400, 'P0001': 429 };
+const statusByCode: Record<string, number> = {
+  '55000': 503,
+  '42501': 403,
+  P0002: 404,
+  '23505': 409,
+  '23514': 409,
+  '22023': 400,
+  P0001: 429,
+};
 function check<T>(result: { data: T; error: { code?: string; message?: string } | null }): T {
   const { error } = result;
   if (!error) return result.data;
@@ -25,8 +34,15 @@ function must<T>(result: { data: T; error: unknown }, what: string): T {
 export function paymentWebhook(app: Express, admin: SupabaseClient, payments: Payments) {
   app.post('/api/stripe/webhook', express.raw({ type: '*/*', limit: '1mb' }), async (req, res) => {
     let event: PaymentEvent;
-    try { event = payments.parseEvent(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), req.get('stripe-signature') || ''); }
-    catch { res.status(400).json({ error: 'Invalid webhook signature.' }); return; }
+    try {
+      event = payments.parseEvent(
+        Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
+        req.get('stripe-signature') || '',
+      );
+    } catch {
+      res.status(400).json({ error: 'Invalid webhook signature.' });
+      return;
+    }
     // Any failure below returns 500, so the provider retries; handlers are repeat-safe.
     await handlePaymentEvent(admin, event);
     res.json({ received: true });
@@ -35,29 +51,86 @@ export function paymentWebhook(app: Express, admin: SupabaseClient, payments: Pa
 
 export async function handlePaymentEvent(admin: SupabaseClient, event: PaymentEvent) {
   if (event.type === 'paid') {
-    const order = must(await admin.from('orders').select('id,total_pence').eq('id', event.orderId).maybeSingle(), 'Order lookup');
-    if (!order) { console.error('Payment event for unknown order', event.id); return; }
-    if (event.amount !== order.total_pence || event.currency !== 'gbp') throw new Error(`Payment amount mismatch for order ${order.id}`);
+    const order = must(
+      await admin.from('orders').select('id,total_pence').eq('id', event.orderId).maybeSingle(),
+      'Order lookup',
+    );
+    if (!order) {
+      console.error('Payment event for unknown order', event.id);
+      return;
+    }
+    if (event.amount !== order.total_pence || event.currency !== 'gbp')
+      throw new Error(`Payment amount mismatch for order ${order.id}`);
     if (event.address) {
       const a = event.address;
-      const saved = await admin.from('order_addresses').upsert({ order_id: order.id, name: a.name.slice(0, 120), line1: a.line1.slice(0, 120),
-        line2: a.line2?.slice(0, 120) || null, city: (a.city || '-').slice(0, 80), postcode: a.postcode.slice(0, 12) }, { onConflict: 'order_id' });
+      const saved = await admin
+        .from('order_addresses')
+        .upsert(
+          {
+            order_id: order.id,
+            name: a.name.slice(0, 120),
+            line1: a.line1.slice(0, 120),
+            line2: a.line2?.slice(0, 120) || null,
+            city: (a.city || '-').slice(0, 80),
+            postcode: a.postcode.slice(0, 12),
+          },
+          { onConflict: 'order_id' },
+        );
       // A missing address must not block recording the payment; support can recover it from the provider.
       if (saved.error) console.error('Delivery address could not be saved for order', order.id);
     }
-    must(await admin.rpc('order_system', { p_action: 'payment_succeeded', p_order: order.id, p_ref: event.paymentRef, p_event: event.id }), 'Payment confirmation');
+    must(
+      await admin.rpc('order_system', {
+        p_action: 'payment_succeeded',
+        p_order: order.id,
+        p_ref: event.paymentRef,
+        p_event: event.id,
+      }),
+      'Payment confirmation',
+    );
   } else if (event.type === 'failed') {
-    const result = await admin.rpc('order_system', { p_action: 'payment_failed', p_order: event.orderId, p_ref: null, p_event: event.id });
+    const result = await admin.rpc('order_system', {
+      p_action: 'payment_failed',
+      p_order: event.orderId,
+      p_ref: null,
+      p_event: event.id,
+    });
     if (result.error && result.error.code !== 'P0002') throw new Error('Payment failure handling failed');
   } else if (event.type === 'account') {
-    must(await admin.from('seller_accounts').update({ payouts_enabled: event.payoutsEnabled }).eq('provider_account', event.account), 'Payout account update');
+    must(
+      await admin
+        .from('seller_accounts')
+        .update({ payouts_enabled: event.payoutsEnabled })
+        .eq('provider_account', event.account),
+      'Payout account update',
+    );
   } else if (event.type === 'chargeback') {
-    const order = must(await admin.from('orders').select('id').eq('payment_ref', event.paymentRef).maybeSingle(), 'Order lookup');
-    if (!order) { console.error('Card dispute for unknown payment', event.id); return; }
-    must(await admin.rpc('order_system', { p_action: 'chargeback', p_order: order.id, p_ref: event.disputeRef, p_event: event.id }), 'Card dispute handling');
+    const order = must(
+      await admin.from('orders').select('id').eq('payment_ref', event.paymentRef).maybeSingle(),
+      'Order lookup',
+    );
+    if (!order) {
+      console.error('Card dispute for unknown payment', event.id);
+      return;
+    }
+    must(
+      await admin.rpc('order_system', {
+        p_action: 'chargeback',
+        p_order: order.id,
+        p_ref: event.disputeRef,
+        p_event: event.id,
+      }),
+      'Card dispute handling',
+    );
     // If the seller has been, or is about to be, paid, stop or take back the payout. Repeat-safe.
-    const clawback = await admin.rpc('order_clawback', { p_action: 'start', p_order: order.id, p_ref: event.disputeRef, p_refund: false });
-    if (clawback.error && !['PGRST202', '42883'].includes(clawback.error.code || '')) throw new Error('Payout clawback failed');
+    const clawback = await admin.rpc('order_clawback', {
+      p_action: 'start',
+      p_order: order.id,
+      p_ref: event.disputeRef,
+      p_refund: false,
+    });
+    if (clawback.error && !['PGRST202', '42883'].includes(clawback.error.code || ''))
+      throw new Error('Payout clawback failed');
   }
 }
 
@@ -68,80 +141,167 @@ export async function handlePaymentEvent(admin: SupabaseClient, event: PaymentEv
  */
 export async function settleOrders(admin: SupabaseClient, payments: Payments) {
   const swept = must(await admin.rpc('order_sweep'), 'Order sweep') as Record<string, number>;
-  const columns = 'id,listing_id,buyer_id,seller_id,title,item_pence,fee_pence,delivery_pence,total_pence,status,funds,created_at,expires_at,checkout_ref,payment_ref';
+  const columns =
+    'id,listing_id,buyer_id,seller_id,title,item_pence,fee_pence,delivery_pence,total_pence,status,funds,created_at,expires_at,checkout_ref,payment_ref';
   const result = { ...swept, reversed: 0, refunded: 0, released: 0, awaiting_payout_setup: 0, failed: 0 };
   // Payouts being taken back come first: a refund may be waiting on the money returning.
-  const reversals = must(await admin.from('orders').select(columns + ',transfer_ref').eq('funds', 'reversal_due').order('updated_at').limit(50), 'Reversal queue') as unknown as OrderRow[];
+  const reversals = must(
+    await admin
+      .from('orders')
+      .select(columns + ',transfer_ref')
+      .eq('funds', 'reversal_due')
+      .order('updated_at')
+      .limit(50),
+    'Reversal queue',
+  ) as unknown as OrderRow[];
   for (const order of reversals) {
     try {
       const ref = await payments.reverseTransfer(order);
-      must(await admin.rpc('order_clawback', { p_action: 'reversed', p_order: order.id, p_ref: ref, p_refund: false }), 'Reversal record');
+      must(
+        await admin.rpc('order_clawback', { p_action: 'reversed', p_order: order.id, p_ref: ref, p_refund: false }),
+        'Reversal record',
+      );
       result.reversed++;
-    } catch (error) { result.failed++; console.error('Payout reversal failed for order', order.id, error instanceof Error ? error.message : ''); }
+    } catch (error) {
+      result.failed++;
+      console.error('Payout reversal failed for order', order.id, error instanceof Error ? error.message : '');
+    }
   }
-  const refunds = must(await admin.from('orders').select(columns).eq('funds', 'refund_due').order('updated_at').limit(50), 'Refund queue') as OrderRow[];
+  const refunds = must(
+    await admin.from('orders').select(columns).eq('funds', 'refund_due').order('updated_at').limit(50),
+    'Refund queue',
+  ) as OrderRow[];
   for (const order of refunds) {
     try {
       const ref = await payments.refund(order);
-      must(await admin.rpc('order_system', { p_action: 'refunded', p_order: order.id, p_ref: ref, p_event: null }), 'Refund record');
+      must(
+        await admin.rpc('order_system', { p_action: 'refunded', p_order: order.id, p_ref: ref, p_event: null }),
+        'Refund record',
+      );
       result.refunded++;
-    } catch (error) { result.failed++; console.error('Refund failed for order', order.id, error instanceof Error ? error.message : ''); }
+    } catch (error) {
+      result.failed++;
+      console.error('Refund failed for order', order.id, error instanceof Error ? error.message : '');
+    }
   }
-  const releases = must(await admin.from('orders').select(columns).eq('funds', 'release_due').order('updated_at').limit(50), 'Release queue') as OrderRow[];
+  const releases = must(
+    await admin.from('orders').select(columns).eq('funds', 'release_due').order('updated_at').limit(50),
+    'Release queue',
+  ) as OrderRow[];
   if (releases.length) {
-    const accounts = must(await admin.from('seller_accounts').select('seller_id,provider_account,payouts_enabled')
-      .in('seller_id', [...new Set(releases.map(order => order.seller_id))]), 'Payout accounts') as { seller_id: string; provider_account: string; payouts_enabled: boolean }[];
+    const accounts = must(
+      await admin
+        .from('seller_accounts')
+        .select('seller_id,provider_account,payouts_enabled')
+        .in('seller_id', [...new Set(releases.map(order => order.seller_id))]),
+      'Payout accounts',
+    ) as { seller_id: string; provider_account: string; payouts_enabled: boolean }[];
     const accountBySeller = new Map<string, string>();
     for (const row of accounts) {
       // Money is waiting for this seller: ask the provider directly in case the status webhook was missed.
       if (!row.payouts_enabled) {
         try {
-          if (!await payments.accountReady(row.provider_account)) continue;
-          must(await admin.from('seller_accounts').update({ payouts_enabled: true }).eq('provider_account', row.provider_account), 'Payout account update');
-        } catch { continue; }
+          if (!(await payments.accountReady(row.provider_account))) continue;
+          must(
+            await admin
+              .from('seller_accounts')
+              .update({ payouts_enabled: true })
+              .eq('provider_account', row.provider_account),
+            'Payout account update',
+          );
+        } catch {
+          continue;
+        }
       }
       accountBySeller.set(row.seller_id, row.provider_account);
     }
     for (const order of releases) {
       const account = accountBySeller.get(order.seller_id);
-      if (!account) { result.awaiting_payout_setup++; continue; }
+      if (!account) {
+        result.awaiting_payout_setup++;
+        continue;
+      }
       try {
         const ref = await payments.transfer(order, account);
-        must(await admin.rpc('order_system', { p_action: 'released', p_order: order.id, p_ref: ref, p_event: null }), 'Release record');
+        must(
+          await admin.rpc('order_system', { p_action: 'released', p_order: order.id, p_ref: ref, p_event: null }),
+          'Release record',
+        );
         result.released++;
-      } catch (error) { result.failed++; console.error('Release failed for order', order.id, error instanceof Error ? error.message : ''); }
+      } catch (error) {
+        result.failed++;
+        console.error('Release failed for order', order.id, error instanceof Error ? error.message : '');
+      }
     }
   }
   return result;
 }
 
-export function orderRoutes(app: Express, authenticate: Authenticate, admin: SupabaseClient, payments: Payments, origin: string) {
+export function orderRoutes(
+  app: Express,
+  authenticate: Authenticate,
+  admin: SupabaseClient,
+  payments: Payments,
+  origin: string,
+) {
   const empty = z.object({}).strict();
   async function startPayment(order: OrderRow, buyerEmail?: string) {
     const checkout = await payments.createCheckout(order, origin, buyerEmail);
-    if (order.checkout_ref !== checkout.id) must(await admin.from('orders').update({ checkout_ref: checkout.id }).eq('id', order.id), 'Checkout reference');
+    if (order.checkout_ref !== checkout.id)
+      must(await admin.from('orders').update({ checkout_ref: checkout.id }).eq('id', order.id), 'Checkout reference');
     return checkout.url;
   }
   app.get('/api/orders', async (req, res) => {
     const { db, user } = await authenticate(req);
-    const orders = check(await db.from('orders').select(orderColumns).order('created_at', { ascending: false }).limit(50)) as { id: string }[];
+    const orders = check(
+      await db.from('orders').select(orderColumns).order('created_at', { ascending: false }).limit(50),
+    ) as { id: string }[];
     // Row-level security returns an address only to the buyer, or to the seller while they need to post.
-    const addresses = orders.length ? check(await db.from('order_addresses').select('order_id,name,line1,line2,city,postcode').in('order_id', orders.map(order => order.id))) : [];
-    const account = check(await db.from('seller_accounts').select('payouts_enabled').eq('seller_id', user.id).maybeSingle()) as { payouts_enabled: boolean } | null;
+    const addresses = orders.length
+      ? check(
+          await db
+            .from('order_addresses')
+            .select('order_id,name,line1,line2,city,postcode')
+            .in(
+              'order_id',
+              orders.map(order => order.id),
+            ),
+        )
+      : [];
+    const account = check(
+      await db.from('seller_accounts').select('payouts_enabled').eq('seller_id', user.id).maybeSingle(),
+    ) as { payouts_enabled: boolean } | null;
     // Reviews arrive with a later migration; until then the feature is simply off.
     const reviewed = await db.from('reviews').select('order_id').eq('reviewer_id', user.id);
     const reviewsEnabled = !reviewed.error;
-    res.json({ orders, addresses, payouts: { started: Boolean(account), enabled: Boolean(account?.payouts_enabled) },
-      reviewsEnabled, reviewed: reviewsEnabled ? reviewed.data!.map(row => row.order_id) : [] });
+    res.json({
+      orders,
+      addresses,
+      payouts: { started: Boolean(account), enabled: Boolean(account?.payouts_enabled) },
+      reviewsEnabled,
+      reviewed: reviewsEnabled ? reviewed.data!.map(row => row.order_id) : [],
+    });
   });
   // The item's main photo for an order. A sold listing is hidden from public browsing, so this
   // checks the caller is the buyer or seller (row-level security) and then reads with the server key.
   app.get('/api/orders/:id/photo', async (req, res) => {
     const { db } = await authenticate(req);
     const id = z.uuid().parse(req.params.id);
-    const order = check(await db.from('orders').select('listing_id').eq('id', id).maybeSingle()) as { listing_id: string } | null;
+    const order = check(await db.from('orders').select('listing_id').eq('id', id).maybeSingle()) as {
+      listing_id: string;
+    } | null;
     if (!order) throw new SocialError(404, 'Order not found.');
-    const photo = must(await admin.from('listing_photos').select('id').eq('listing_id', order.listing_id).eq('ready', true).order('position').limit(1).maybeSingle(), 'Photo lookup') as { id: string } | null;
+    const photo = must(
+      await admin
+        .from('listing_photos')
+        .select('id')
+        .eq('listing_id', order.listing_id)
+        .eq('ready', true)
+        .order('position')
+        .limit(1)
+        .maybeSingle(),
+      'Photo lookup',
+    ) as { id: string } | null;
     if (!photo) throw new SocialError(404, 'This item has no photo.');
     const file = await admin.storage.from('listing-photos').download(`${order.listing_id}/${photo.id}.webp`);
     if (file.error) throw new SocialError(404, 'This item has no photo.');
@@ -155,13 +315,22 @@ export function orderRoutes(app: Express, authenticate: Authenticate, admin: Sup
   });
   app.post('/api/orders', async (req, res) => {
     const { db, user } = await authenticate(req);
-    const { listing_id, request_id } = z.object({ listing_id: z.uuid(), request_id: z.uuid() }).strict().parse(req.body);
-    const order = check(await db.rpc('order_action', { p_action: 'reserve', p_listing: listing_id, p_request: request_id })) as OrderRow;
+    const { listing_id, request_id } = z
+      .object({ listing_id: z.uuid(), request_id: z.uuid() })
+      .strict()
+      .parse(req.body);
+    const order = check(
+      await db.rpc('order_action', { p_action: 'reserve', p_listing: listing_id, p_request: request_id }),
+    ) as OrderRow;
     // A repeated request for an order that has moved on returns it without a new payment page.
-    if (order.status !== 'awaiting_payment') { res.json({ order }); return; }
+    if (order.status !== 'awaiting_payment') {
+      res.json({ order });
+      return;
+    }
     let url: string;
-    try { url = await startPayment(order, user.email); }
-    catch (error) {
+    try {
+      url = await startPayment(order, user.email);
+    } catch (error) {
       console.error('Checkout could not be started for order', order.id, error instanceof Error ? error.message : '');
       await db.rpc('order_action', { p_action: 'cancel', p_order: order.id });
       throw new SocialError(503, 'Payment could not be started. You have not been charged; please try again.');
@@ -170,36 +339,60 @@ export function orderRoutes(app: Express, authenticate: Authenticate, admin: Sup
   });
   app.post('/api/orders/:id/pay', async (req, res) => {
     const { db, user } = await authenticate(req);
-    const id = z.uuid().parse(req.params.id); empty.parse(req.body);
-    const order = check(await db.from('orders').select('*').eq('id', id).eq('buyer_id', user.id).maybeSingle()) as OrderRow | null;
+    const id = z.uuid().parse(req.params.id);
+    empty.parse(req.body);
+    const order = check(
+      await db.from('orders').select('*').eq('id', id).eq('buyer_id', user.id).maybeSingle(),
+    ) as OrderRow | null;
     if (!order) throw new SocialError(404, 'Order not found.');
-    if (order.status !== 'awaiting_payment' || Date.parse(order.expires_at) <= Date.now()) throw new SocialError(409, 'This checkout has expired. Start again from the listing.');
+    if (order.status !== 'awaiting_payment' || Date.parse(order.expires_at) <= Date.now())
+      throw new SocialError(409, 'This checkout has expired. Start again from the listing.');
     res.json({ checkout_url: await startPayment(order, user.email) });
   });
   app.post('/api/orders/:id/review', async (req, res) => {
     const { db } = await authenticate(req);
     const id = z.uuid().parse(req.params.id);
-    const { rating, comment } = z.object({ rating: z.number().int().min(1).max(5), comment: z.string().trim().max(500).default('') }).strict().parse(req.body);
+    const { rating, comment } = z
+      .object({ rating: z.number().int().min(1).max(5), comment: z.string().trim().max(500).default('') })
+      .strict()
+      .parse(req.body);
     const made = await db.rpc('leave_review', { p_order: id, p_rating: rating, p_comment: comment });
-    if (made.error && ['PGRST202', '42883'].includes(made.error.code || '')) throw new SocialError(503, 'Reviews are not available yet.');
+    if (made.error && ['PGRST202', '42883'].includes(made.error.code || ''))
+      throw new SocialError(503, 'Reviews are not available yet.');
     check(made);
     res.status(201).json({ ok: true });
   });
   app.post('/api/orders/:id/:action', async (req, res) => {
     const { db } = await authenticate(req);
     const id = z.uuid().parse(req.params.id);
-    const action = z.enum(['cancel', 'dispatch', 'confirm_delivery', 'accept', 'report_issue']).parse(req.params.action);
-    const { text } = z.object({ text: z.string().trim().max(2000).optional() }).strict().parse(req.body);
-    const order = check(await db.rpc('order_action', { p_action: action, p_order: id, p_text: text ?? null })) as OrderRow;
+    const action = z
+      .enum(['cancel', 'dispatch', 'confirm_delivery', 'accept', 'report_issue'])
+      .parse(req.params.action);
+    const { text } = z
+      .object({ text: z.string().trim().max(2000).optional() })
+      .strict()
+      .parse(req.body);
+    const order = check(
+      await db.rpc('order_action', { p_action: action, p_order: id, p_text: text ?? null }),
+    ) as OrderRow;
     if (action === 'cancel' && order.checkout_ref) {
       // Best effort. If the buyer still pays, the late-payment rules revive or refund the order.
-      try { await payments.expireCheckout(order.checkout_ref); } catch { /* already closed */ }
+      try {
+        await payments.expireCheckout(order.checkout_ref);
+      } catch {
+        /* already closed */
+      }
     }
     res.json({ order });
   });
   app.post('/api/payouts/onboard', async (req, res) => {
-    const { user } = await authenticate(req); empty.parse(req.body);
-    const find = async () => must(await admin.from('seller_accounts').select('provider_account').eq('seller_id', user.id).maybeSingle(), 'Payout account lookup') as { provider_account: string } | null;
+    const { user } = await authenticate(req);
+    empty.parse(req.body);
+    const find = async () =>
+      must(
+        await admin.from('seller_accounts').select('provider_account').eq('seller_id', user.id).maybeSingle(),
+        'Payout account lookup',
+      ) as { provider_account: string } | null;
     let account = (await find())?.provider_account;
     if (!account) {
       account = await payments.createSellerAccount(user.id, user.email);

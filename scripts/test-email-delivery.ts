@@ -5,7 +5,10 @@ import { chromium } from 'playwright';
 // Run only after checking account existence with the Supabase plugin.
 // No passwords, tokens, links, response bodies, or browser traces are recorded.
 const mode = process.env.EMAIL_TEST_ACTION;
-if (!['signup', 'reset'].includes(mode ?? '') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.EMAIL_TEST_ADDRESS ?? '')) {
+if (
+  !['signup', 'reset'].includes(mode ?? '') ||
+  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.EMAIL_TEST_ADDRESS ?? '')
+) {
   throw new Error('Explicit email test address and action required');
 }
 let browser;

@@ -8,7 +8,7 @@ services:
     plan: 0.5c-512mb
     repo: https://github.com/jonny-watkins/re-golf
     branch: main
-    schedule: "0 * * * *"
+    schedule: '0 * * * *'
     buildCommand: npm ci --include=dev
     startCommand: npm run photos:cleanup
     autoDeployTrigger: off

@@ -19,11 +19,14 @@ test('cleanup rejects missing credentials and unsafe destinations without echoin
     { SUPABASE_URL: 'https://attacker.example', SUPABASE_STORAGE_SECRET: 'sb_secret_test' },
     { SUPABASE_URL: 'https://test.supabase.co', SUPABASE_STORAGE_SECRET: 'private-invalid-value' },
   ]) {
-    assert.throws(() => readCleanupConfig(env), error => {
-      assert.ok(error instanceof Error);
-      assert.equal(error.message.includes('private-invalid-value'), false);
-      assert.equal(error.message.includes('sb_secret_test'), false);
-      return true;
-    });
+    assert.throws(
+      () => readCleanupConfig(env),
+      error => {
+        assert.ok(error instanceof Error);
+        assert.equal(error.message.includes('private-invalid-value'), false);
+        assert.equal(error.message.includes('sb_secret_test'), false);
+        return true;
+      },
+    );
   }
 });

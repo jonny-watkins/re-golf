@@ -10,10 +10,24 @@ test('failed storage deletion retains queue and a later cleanup retries successf
   const db = {
     rpc: async () => ({ error: null }),
     from: () => ({
-      select: () => ({ order: () => ({ limit: async () => ({ data: queued ? [{ path: 'fixture/photo.webp' }] : [], error: null }) }) }),
-      delete: () => ({ in: async () => { queued = false; return { error: null }; } }),
+      select: () => ({
+        order: () => ({ limit: async () => ({ data: queued ? [{ path: 'fixture/photo.webp' }] : [], error: null }) }),
+      }),
+      delete: () => ({
+        in: async () => {
+          queued = false;
+          return { error: null };
+        },
+      }),
     }),
-    storage: { from: () => ({ remove: async () => { attempts++; return { error: fail ? new Error('Unavailable') : null }; } }) },
+    storage: {
+      from: () => ({
+        remove: async () => {
+          attempts++;
+          return { error: fail ? new Error('Unavailable') : null };
+        },
+      }),
+    },
   } as unknown as SupabaseClient;
   await assert.rejects(cleanupPhotos(db), /queue retained/);
   assert.equal(queued, true);

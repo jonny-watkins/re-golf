@@ -10,21 +10,45 @@ test('orders hold funds until delivery checks pass', async t => {
   const buyer = '22222222-2222-4222-8222-222222222222';
   const other = '33333333-3333-4333-8333-333333333333';
   const unverified = '44444444-4444-4444-8444-444444444444';
-  type Order = { id: string; status: string; funds: string; total_pence: number; fee_pence: number; item_pence: number; release_at: string | null; tracking: string | null };
-  const admin = async (sql: string, params: unknown[] = []) => { await db.exec('reset role'); return db.query<any>(sql, params); };
+  type Order = {
+    id: string;
+    status: string;
+    funds: string;
+    total_pence: number;
+    fee_pence: number;
+    item_pence: number;
+    release_at: string | null;
+    tracking: string | null;
+  };
+  const admin = async (sql: string, params: unknown[] = []) => {
+    await db.exec('reset role');
+    return db.query<any>(sql, params);
+  };
   async function as(id: string, role = 'authenticated') {
     await db.exec('reset role');
     await db.query("select set_config('request.jwt.claim.sub',$1,false)", [id]);
     await db.exec(`set role ${role}`);
   }
-  async function act(user: string, action: string, args: { listing?: string; request?: string; order?: string; text?: string } = {}) {
+  async function act(
+    user: string,
+    action: string,
+    args: { listing?: string; request?: string; order?: string; text?: string } = {},
+  ) {
     await as(user);
-    return (await db.query<{ r: Order }>('select public.order_action($1,$2,$3,$4,$5) as r',
-      [action, args.listing ?? null, args.request ?? null, args.order ?? null, args.text ?? null])).rows[0].r;
+    return (
+      await db.query<{ r: Order }>('select public.order_action($1,$2,$3,$4,$5) as r', [
+        action,
+        args.listing ?? null,
+        args.request ?? null,
+        args.order ?? null,
+        args.text ?? null,
+      ])
+    ).rows[0].r;
   }
   async function system(action: string, order: string, ref: string | null = null, event: string | null = null) {
     await db.exec('reset role; set role service_role');
-    return (await db.query<{ r: Order }>('select public.order_system($1,$2,$3,$4) as r', [action, order, ref, event])).rows[0].r;
+    return (await db.query<{ r: Order }>('select public.order_system($1,$2,$3,$4) as r', [action, order, ref, event]))
+      .rows[0].r;
   }
   async function sweep() {
     await db.exec('reset role; set role service_role');
@@ -34,10 +58,17 @@ test('orders hold funds until delivery checks pass', async t => {
     // Age earlier fixtures so the per-buyer hourly checkout limit does not interfere.
     await admin("update public.orders set created_at=now()-interval '2 hours'");
     await as(seller);
-    return (await db.query<{ id: string }>("insert into public.listings(seller_id,name,brand,category,condition,price_pence,location) values($1,'G430 Driver','Ping','Drivers','Good',$2,'Leeds') returning id", [seller, price])).rows[0].id;
+    return (
+      await db.query<{ id: string }>(
+        "insert into public.listings(seller_id,name,brand,category,condition,price_pence,location) values($1,'G430 Driver','Ping','Drivers','Good',$2,'Leeds') returning id",
+        [seller, price],
+      )
+    ).rows[0].id;
   }
-  const listingStatus = async (id: string) => (await admin('select status from public.listings where id=$1', [id])).rows[0].status;
-  const fetchOrder = async (id: string) => (await admin('select * from public.orders where id=$1', [id])).rows[0] as Order;
+  const listingStatus = async (id: string) =>
+    (await admin('select status from public.listings where id=$1', [id])).rows[0].status;
+  const fetchOrder = async (id: string) =>
+    (await admin('select * from public.orders where id=$1', [id])).rows[0] as Order;
   /** Reserve and pay, returning the paid order. */
   async function paidOrder(listing: string, who = buyer) {
     const order = await act(who, 'reserve', { listing, request: randomUUID() });
@@ -50,10 +81,19 @@ test('orders hold funds until delivery checks pass', async t => {
       create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
       grant usage on schema public,auth to anon,authenticated,service_role; grant execute on function auth.uid() to anon,authenticated,service_role;`);
     // Same order as the hosted database, including the retired simulation that the last migration removes.
-    for (const file of ['202611140001_foundations.sql', '20261117110226_favourites_messaging.sql', '20261117123645_test_checkout_orders.sql', '20261117150000_orders_escrow.sql', '20261117180000_support_and_clawback.sql'])
+    for (const file of [
+      '202611140001_foundations.sql',
+      '20261117110226_favourites_messaging.sql',
+      '20261117123645_test_checkout_orders.sql',
+      '20261117150000_orders_escrow.sql',
+      '20261117180000_support_and_clawback.sql',
+    ])
       await db.exec(await readFile(new URL(`../supabase/migrations/${file}`, import.meta.url), 'utf8'));
     for (const id of [seller, buyer, other, unverified])
-      await db.query("insert into auth.users values($1,'{}',$2)", [id, id === unverified ? null : new Date().toISOString()]);
+      await db.query("insert into auth.users values($1,'{}',$2)", [
+        id,
+        id === unverified ? null : new Date().toISOString(),
+      ]);
 
     let listing = await newListing();
 
@@ -64,8 +104,11 @@ test('orders hold funds until delivery checks pass', async t => {
     });
 
     await t.test('quote uses the stored price and a fixed-plus-percentage fee', async () => {
-      const quote = await act(buyer, 'quote', { listing }) as unknown as Record<string, number>;
-      assert.deepEqual([quote.item_pence, quote.fee_pence, quote.delivery_pence, quote.total_pence], [10000, 570, 595, 11165]);
+      const quote = (await act(buyer, 'quote', { listing })) as unknown as Record<string, number>;
+      assert.deepEqual(
+        [quote.item_pence, quote.fee_pence, quote.delivery_pence, quote.total_pence],
+        [10000, 570, 595, 11165],
+      );
       await assert.rejects(act(seller, 'quote', { listing }), /own listing/);
       await assert.rejects(act(unverified, 'quote', { listing }), /Confirm your email/);
       await db.exec('reset role; set role anon');
@@ -84,18 +127,33 @@ test('orders hold funds until delivery checks pass', async t => {
 
     await t.test('seller cannot edit, archive or re-activate a listing held by an order', async () => {
       await as(seller);
-      await assert.rejects(db.query("update public.listings set status='active' where id=$1", [listing]), /part of an order/);
-      await assert.rejects(db.query("update public.listings set price_pence=100 where id=$1", [listing]), /part of an order/);
-      await assert.rejects(db.query("update public.listings set status='archived' where id=$1", [listing]), /part of an order/);
+      await assert.rejects(
+        db.query("update public.listings set status='active' where id=$1", [listing]),
+        /part of an order/,
+      );
+      await assert.rejects(
+        db.query('update public.listings set price_pence=100 where id=$1', [listing]),
+        /part of an order/,
+      );
+      await assert.rejects(
+        db.query("update public.listings set status='archived' where id=$1", [listing]),
+        /part of an order/,
+      );
       const free = await newListing();
-      await assert.rejects(db.query("update public.listings set status='sold' where id=$1", [free]), /part of an order/);
+      await assert.rejects(
+        db.query("update public.listings set status='sold' where id=$1", [free]),
+        /part of an order/,
+      );
       await db.query("update public.listings set status='archived' where id=$1", [free]);
     });
 
     await t.test('clients cannot write orders, confirm payment or run system actions', async () => {
       await as(buyer);
       await assert.rejects(db.query("update public.orders set status='paid',funds='held'"), /permission denied/);
-      await assert.rejects(db.query("select public.order_system('payment_succeeded',$1)", [order.id]), /permission denied/);
+      await assert.rejects(
+        db.query("select public.order_system('payment_succeeded',$1)", [order.id]),
+        /permission denied/,
+      );
       await assert.rejects(db.query('select public.order_sweep()'), /permission denied/);
       await assert.rejects(db.query('select * from public.payment_events'), /permission denied/);
       await assert.rejects(db.query('select * from private.marketplace_settings'), /permission denied/);
@@ -132,11 +190,17 @@ test('orders hold funds until delivery checks pass', async t => {
       await assert.rejects(system('released', order.id, 'tr_early'), /not due for release/);
       await admin("update public.orders set release_at=now()-interval '1 minute' where id=$1", [order.id]);
       assert.equal((await sweep()).release_due, 1);
-      assert.deepEqual([(await fetchOrder(order.id)).status, (await fetchOrder(order.id)).funds], ['completed', 'release_due']);
+      assert.deepEqual(
+        [(await fetchOrder(order.id)).status, (await fetchOrder(order.id)).funds],
+        ['completed', 'release_due'],
+      );
       order = await system('released', order.id, 'tr_1');
       assert.equal(order.funds, 'released');
-      assert.equal((await system('released', order.id, 'tr_2') as any).transfer_ref, 'tr_1');
-      await assert.rejects(act(buyer, 'report_issue', { order: order.id, text: 'Too late' }), /window for this order is closed/);
+      assert.equal(((await system('released', order.id, 'tr_2')) as any).transfer_ref, 'tr_1');
+      await assert.rejects(
+        act(buyer, 'report_issue', { order: order.id, text: 'Too late' }),
+        /window for this order is closed/,
+      );
       assert.equal(await listingStatus(listing), 'sold');
     });
 
@@ -203,7 +267,11 @@ test('orders hold funds until delivery checks pass', async t => {
       assert.equal(winner.status, 'paid');
       const refunded = await system('payment_succeeded', late.id, 'pi_late', 'evt_late');
       assert.deepEqual([refunded.status, refunded.funds], ['expired', 'refund_due']);
-      assert.equal((await admin("select count(*)::int as n from public.orders where listing_id=$1 and status='paid'", [listing])).rows[0].n, 1);
+      assert.equal(
+        (await admin("select count(*)::int as n from public.orders where listing_id=$1 and status='paid'", [listing]))
+          .rows[0].n,
+        1,
+      );
 
       // Late success with the item still free is honoured.
       listing = await newListing();
@@ -239,8 +307,14 @@ test('orders hold funds until delivery checks pass', async t => {
       listing = await newListing();
       order = await paidOrder(listing);
       await db.exec('reset role; set role service_role');
-      await db.query("insert into public.order_addresses(order_id,name,line1,city,postcode) values($1,'A Buyer','1 Fairway','Leeds','LS1 1AA')", [order.id]);
-      const visible = async (who: string) => { await as(who); return (await db.query('select * from public.order_addresses where order_id=$1', [order.id])).rows.length; };
+      await db.query(
+        "insert into public.order_addresses(order_id,name,line1,city,postcode) values($1,'A Buyer','1 Fairway','Leeds','LS1 1AA')",
+        [order.id],
+      );
+      const visible = async (who: string) => {
+        await as(who);
+        return (await db.query('select * from public.order_addresses where order_id=$1', [order.id])).rows.length;
+      };
       assert.deepEqual([await visible(buyer), await visible(seller), await visible(other)], [1, 1, 0]);
       await as(seller);
       await assert.rejects(db.query("update public.order_addresses set city='x'"), /permission denied/);
@@ -257,7 +331,9 @@ test('orders hold funds until delivery checks pass', async t => {
       await db.exec('reset role; set role service_role');
       await db.query("insert into public.seller_accounts(seller_id,provider_account) values($1,'acct_1')", [seller]);
       await as(seller);
-      assert.deepEqual((await db.query('select seller_id,payouts_enabled from public.seller_accounts')).rows, [{ seller_id: seller, payouts_enabled: false }]);
+      assert.deepEqual((await db.query('select seller_id,payouts_enabled from public.seller_accounts')).rows, [
+        { seller_id: seller, payouts_enabled: false },
+      ]);
       await assert.rejects(db.query('select provider_account from public.seller_accounts'), /permission denied/);
       await assert.rejects(db.query('update public.seller_accounts set payouts_enabled=true'), /permission denied/);
       await as(buyer);
@@ -267,8 +343,20 @@ test('orders hold funds until delivery checks pass', async t => {
     await t.test('support can read settings and switch checkout off; clients cannot', async () => {
       await db.exec('reset role; set role service_role');
       const settings = (await db.query<{ r: any }>('select public.marketplace_settings() as r')).rows[0].r;
-      assert.deepEqual([settings.checkout_enabled, settings.fee_fixed_pence, settings.fee_bps, settings.delivery_pence, settings.hold_hours], [true, 70, 500, 595, 48]);
-      assert.equal((await db.query<{ r: any }>('select public.set_checkout_enabled(false) as r')).rows[0].r.checkout_enabled, false);
+      assert.deepEqual(
+        [
+          settings.checkout_enabled,
+          settings.fee_fixed_pence,
+          settings.fee_bps,
+          settings.delivery_pence,
+          settings.hold_hours,
+        ],
+        [true, 70, 500, 595, 48],
+      );
+      assert.equal(
+        (await db.query<{ r: any }>('select public.set_checkout_enabled(false) as r')).rows[0].r.checkout_enabled,
+        false,
+      );
       listing = await newListing();
       await assert.rejects(act(buyer, 'reserve', { listing, request: randomUUID() }), /not open yet/);
       await assert.rejects(db.query('select public.set_checkout_enabled(true)'), /permission denied/);
@@ -276,14 +364,18 @@ test('orders hold funds until delivery checks pass', async t => {
       await assert.rejects(db.query('select * from public.admin_actions'), /permission denied/);
       await db.exec('reset role; set role service_role');
       await db.query('select public.set_checkout_enabled(true)');
-      await db.query("insert into public.admin_actions(admin_id,action,target) values($1,'checkout_on','settings')", [seller]);
+      await db.query("insert into public.admin_actions(admin_id,action,target) values($1,'checkout_on','settings')", [
+        seller,
+      ]);
       // Orders already paid keep working while checkout is closed to new buyers.
     });
 
     await t.test('a payout can be stopped or taken back, then refunded', async () => {
       const clawback = async (action: string, id: string, ref: string | null = null, refund = false) => {
         await db.exec('reset role; set role service_role');
-        return (await db.query<{ r: Order }>('select public.order_clawback($1,$2,$3,$4) as r', [action, id, ref, refund])).rows[0].r;
+        return (
+          await db.query<{ r: Order }>('select public.order_clawback($1,$2,$3,$4) as r', [action, id, ref, refund])
+        ).rows[0].r;
       };
       // Queued but not yet paid out: stop it and hand the decision to support.
       order = await paidOrder(listing);
@@ -301,7 +393,7 @@ test('orders hold funds until delivery checks pass', async t => {
       await assert.rejects(system('refunded', order.id, 're_early'), /No refund is due/);
       order = await clawback('reversed', order.id, 'trr_1');
       assert.deepEqual([order.status, order.funds, (order as any).reversal_ref], ['cancelled', 'refund_due', 'trr_1']);
-      assert.equal((await clawback('reversed', order.id, 'trr_again') as any).reversal_ref, 'trr_1');
+      assert.equal(((await clawback('reversed', order.id, 'trr_again')) as any).reversal_ref, 'trr_1');
       assert.equal((await system('refunded', order.id, 're_2')).funds, 'refunded');
       // Bank dispute after payout: money comes back from the seller and waits for the outcome.
       listing = await newListing();
@@ -311,7 +403,10 @@ test('orders hold funds until delivery checks pass', async t => {
       await system('released', order.id, 'tr_3');
       await clawback('start', order.id, 'dp_3');
       assert.equal((await clawback('reversed', order.id, 'trr_3')).funds, 'reversed');
-      await assert.rejects(clawback('reversed', (await paidOrder(await newListing())).id, 'x'), /No payout is being taken back/);
+      await assert.rejects(
+        clawback('reversed', (await paidOrder(await newListing())).id, 'x'),
+        /No payout is being taken back/,
+      );
       await as(buyer);
       await assert.rejects(db.query("select public.order_clawback('start',$1)", [order.id]), /permission denied/);
     });
@@ -319,7 +414,8 @@ test('orders hold funds until delivery checks pass', async t => {
     await t.test('reviews: one each way, only after completion, readable by everyone', async () => {
       const review = async (who: string, id: string, rating: number, comment = '') => {
         await as(who);
-        return (await db.query<{ r: any }>('select public.leave_review($1,$2,$3) as r', [id, rating, comment])).rows[0].r;
+        return (await db.query<{ r: any }>('select public.leave_review($1,$2,$3) as r', [id, rating, comment])).rows[0]
+          .r;
       };
       listing = await newListing();
       order = await paidOrder(listing);
@@ -329,29 +425,47 @@ test('orders hold funds until delivery checks pass', async t => {
       await assert.rejects(review(other, order.id, 5), /Order unavailable/);
       await assert.rejects(review(buyer, order.id, 6), /rating from 1 to 5/);
       const made = await review(buyer, order.id, 5, '  Exactly as described  ');
-      assert.deepEqual([made.reviewer_id, made.reviewee_id, made.rating, made.comment], [buyer, seller, 5, 'Exactly as described']);
+      assert.deepEqual(
+        [made.reviewer_id, made.reviewee_id, made.rating, made.comment],
+        [buyer, seller, 5, 'Exactly as described'],
+      );
       await assert.rejects(review(buyer, order.id, 1), /already reviewed/);
       assert.equal((await review(seller, order.id, 4)).reviewee_id, buyer);
       await as(buyer);
-      await assert.rejects(db.query("insert into public.reviews(order_id,reviewer_id,reviewee_id,rating) values($1,$2,$3,5)", [order.id, other, seller]), /permission denied/);
+      await assert.rejects(
+        db.query('insert into public.reviews(order_id,reviewer_id,reviewee_id,rating) values($1,$2,$3,5)', [
+          order.id,
+          other,
+          seller,
+        ]),
+        /permission denied/,
+      );
       await assert.rejects(db.query('update public.reviews set rating=1'), /permission denied/);
       await db.exec('reset role; set role anon');
-      const seen = await db.query<{ rating: number; comment: string }>('select rating,comment from public.reviews where reviewee_id=$1', [seller]);
+      const seen = await db.query<{ rating: number; comment: string }>(
+        'select rating,comment from public.reviews where reviewee_id=$1',
+        [seller],
+      );
       assert.deepEqual(seen.rows, [{ rating: 5, comment: 'Exactly as described' }]);
       await assert.rejects(db.query('select reviewer_id from public.reviews'), /permission denied/);
     });
 
     await t.test('the retired simulation is gone and the private schema is closed to clients', async () => {
-      const left = await admin("select to_regclass('public.test_orders') as a, to_regclass('public.test_listings') as b, to_regclass('private.test_checkout_settings') as c, to_regproc('public.test_checkout') as d");
+      const left = await admin(
+        "select to_regclass('public.test_orders') as a, to_regclass('public.test_listings') as b, to_regclass('private.test_checkout_settings') as c, to_regproc('public.test_checkout') as d",
+      );
       assert.deepEqual(left.rows[0], { a: null, b: null, c: null, d: null });
-      assert.equal((await admin("select has_schema_privilege('authenticated','private','usage') as ok")).rows[0].ok, false);
+      assert.equal(
+        (await admin("select has_schema_privilege('authenticated','private','usage') as ok")).rows[0].ok,
+        false,
+      );
     });
 
     await t.test('snapshots survive fee changes; blocked pairs cannot trade; history is recorded', async () => {
       await admin('update private.marketplace_settings set fee_fixed_pence=999, fee_bps=0');
       assert.equal((await fetchOrder(swept.id)).fee_pence, 570);
       listing = await newListing(20000);
-      const quote = await act(buyer, 'quote', { listing }) as unknown as Record<string, number>;
+      const quote = (await act(buyer, 'quote', { listing })) as unknown as Record<string, number>;
       assert.equal(quote.fee_pence, 999);
       // Fixture only: skip the messaging guard, which requires a signed-in blocker with a conversation.
       await db.exec(`reset role; set session_replication_role=replica;
@@ -359,11 +473,19 @@ test('orders hold funds until delivery checks pass', async t => {
         set session_replication_role=origin;`);
       await assert.rejects(act(buyer, 'reserve', { listing, request: randomUUID() }), /unavailable to you/);
       await as(other);
-      const events = await db.query<{ action: string; actor_id: string | null }>('select action,actor_id from public.order_events where order_id=$1 order by id', [swept.id]);
-      assert.deepEqual(events.rows.map(e => e.action), ['reserve', 'payment_succeeded', 'dispatch', 'assume_delivered']);
+      const events = await db.query<{ action: string; actor_id: string | null }>(
+        'select action,actor_id from public.order_events where order_id=$1 order by id',
+        [swept.id],
+      );
+      assert.deepEqual(
+        events.rows.map(e => e.action),
+        ['reserve', 'payment_succeeded', 'dispatch', 'assume_delivered'],
+      );
       assert.equal(events.rows[1].actor_id, null);
       await as(buyer);
       assert.equal((await db.query('select * from public.order_events where order_id=$1', [swept.id])).rows.length, 0);
     });
-  } finally { await db.close(); }
+  } finally {
+    await db.close();
+  }
 });

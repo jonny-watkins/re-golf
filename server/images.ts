@@ -9,6 +9,9 @@ export async function normalisePhoto(input: Buffer): Promise<Buffer> {
     throw new Error('Choose a still JPEG, PNG or WebP photo.');
   }
   // Decode/re-encode, auto-orient before stripping EXIF (including GPS), never copy metadata.
-  return image.rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 82 }).toBuffer();
+  return image
+    .rotate()
+    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toBuffer();
 }

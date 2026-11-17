@@ -1,0 +1,9 @@
+dist/
+node_modules/
+artifacts/
+package-lock.json
+supabase/
+public/
+index.html
+*.md
+.vscode/
