@@ -1,5 +1,7 @@
 # Re Golf release plan
 
+Latest security update, 17 November: function-permission hardening is applied to the development database and verified with 44 local tests, TypeScript and fresh Render social/photo checks. Existing accounts and listings are preserved. This supersedes permission-hardening pending statements below. Hourly photo cleanup remains pending.
+
 Updated: 17 November 2026. Status: password-protected Render development preview deployed and authentication callbacks verified; invitation readiness remains pending. Not a public marketplace launch.
 
 Release Re-Golf in three steps: a private listing preview, an invited transaction pilot, and a public UK marketplace. Public purchases should open only after payments, delivery, refunds, seller payouts, and support have worked end to end.
@@ -142,7 +144,7 @@ At two weeks, prioritise defects and operational friction. At four weeks, review
 ## Immediate next actions
 
 1. Finish the remaining email checks: inbox/spam placement, detailed rendering and elapsed-time expiry. Actual confirmation/reset delivery and password replacement/sign-in passed; see SETUP.md.
-2. Harden flagged function permissions and prepare hourly photo cleanup on the eventual host.
+2. Function-permission hardening is complete on the development database (44 local tests, TypeScript and fresh Render social/photo acceptance passed). Prepare hourly photo cleanup on Render; paid scheduling remains unprovisioned.
 3. Assign report review for the completed favourites/messaging preview; confirm commercial assumptions before checkout work.
 4. Review and publish the intended source, run CI, and deploy the private development preview.
 5. Recruit preview testers and re-estimate the transaction work using their feedback and the selected provider's requirements.

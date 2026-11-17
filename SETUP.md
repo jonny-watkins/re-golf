@@ -1,5 +1,13 @@
 # Connect Re Golf accounts and listings
 
+## Function permissions hardened — 17 November 2026
+
+Applied `20261117120902_harden_function_permissions.sql` to the existing development database through the Supabase plugin. Explicit EXECUTE grants were removed from PUBLIC, anon and authenticated for the profile, updated-at and photo-cleanup trigger functions; anonymous execution of the seller-verification helper was removed. Authenticated execution of that current-user-only boolean check remains required by listing RLS and social-write guards. Server photo-management and pruning access is preserved. No account or listing data was changed by the migration.
+
+All 44 local tests and TypeScript passed. Regression coverage reproduces inherited Supabase client grants and checks denied calls, signup/profile creation, listing updates, photo management and cleanup triggers after hardening. Fresh Render acceptance passed sign-in, listings, favourites, private messaging, blocks/reports, and photo upload/download/removal. Disposable fixtures were removed. This supersedes earlier permission-hardening pending notes below.
+
+The security advisor no longer flags anonymous definer execution or client execution of internal trigger functions. The intentional authenticated seller check remains flagged ([guidance](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable)); expected RLS-protected schema visibility and the server-only cleanup queue notice remain. Leaked-password protection remains disabled. Hourly cleanup scheduling is still pending; no paid resource was created.
+
 ## Render preview live — 17 November 2026
 
 The password-protected development preview is live at https://re-golf-development.onrender.com. Render service `srv-dbu3sp0u01pc73djj1lg` uses the Free plan in Frankfurt, one instance, and manual deployments. Deployment `dep-dbu3spou01pc73djj4i0` runs tested commit `86c68079e5caf2c9b6516ee37c30af11d42185b1`. It was created through the Render API using the reviewed Blueprint settings; there is no Blueprint sync attached. No paid resource was created.

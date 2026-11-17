@@ -117,6 +117,9 @@ test('photo migration protects data and serialises photo management', async t =>
   for (const migration of ['202611140001_foundations.sql', '202611160001_listing_photos.sql']) {
     await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
   }
+  // Reproduce the explicit client grants inherited from Supabase defaults.
+  await db.exec('grant execute on function public.create_user_profile(), public.set_updated_at(), public.queue_photo_cleanup(), public.is_verified_seller() to anon, authenticated');
+  await db.exec(await readFile(new URL('../supabase/migrations/20261117120902_harden_function_permissions.sql', import.meta.url), 'utf8'));
   async function as(role: string, user = '') {
     await db.exec('reset role');
     await db.query("select set_config('request.jwt.claim.sub',$1,false)", [user]);
@@ -126,6 +129,19 @@ test('photo migration protects data and serialises photo management', async t =>
     return (await db.query<{ id: string }>('select public.manage_listing_photo($1,$2,$3,$4) as id', [listing, seller, photo, name])).rows[0].id;
   }
   try {
+    await t.test('hardening removes client access while retaining the seller check', async () => {
+      for (const role of ['anon', 'authenticated']) {
+        await as(role);
+        for (const fn of ['create_user_profile', 'set_updated_at', 'queue_photo_cleanup']) {
+          await assert.rejects(db.query(`select public.${fn}()`), /permission denied/);
+        }
+      }
+      await as('anon');
+      await assert.rejects(db.query('select public.is_verified_seller()'), /permission denied/);
+      await as('authenticated');
+      assert.equal((await db.query<{ verified: boolean }>('select public.is_verified_seller() as verified')).rows[0].verified, false);
+      await db.exec('reset role');
+    });
     await db.query("insert into auth.users values($1,'{}',now()),($2,'{}',now())", [alice, bob]);
     await as('authenticated', alice);
     listing = (await db.query<{ id: string }>("insert into public.listings(seller_id,name,brand,category,condition,price_pence,location,handedness,shaft_flex,loft) values($1,'Driver','Ping','Drivers','Good',10000,'Leeds','Left','Stiff',10.5) returning id", [alice])).rows[0].id;
