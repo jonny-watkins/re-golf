@@ -1,5 +1,9 @@
 # Connect Re Golf accounts and listings
 
+## GitHub publication — 17 November 2026
+
+Reviewed source was published to `main` as commit `43d8356` (marketplace backend and protected development preview). The candidate passed 43 automated tests, TypeScript, the production build, smoke checks and a redacted staged-secret scan. GitHub [App checks](https://github.com/jonny-watkins/re-golf/actions/runs/44073489549) passed on that exact commit, including clean dependency installation. `.env`, build output and test screenshots were excluded. The Render Blueprint now includes the server-only photo-storage setting and generates a preview password; the app requires preview access on Render. Render deployment is not complete: the Render plugin still needs connecting. The repository's pre-existing GitHub Pages workflow also ran, but static Pages cannot serve the Express API and does not constitute the application deployment. Existing Supabase accounts and data are unchanged. This record supersedes earlier statements that the source has not been pushed.
+
 ## Favourites and messaging verified — 17 November 2026
 
 Persistent account favourites and private listing conversations are implemented and applied to the development Supabase project. The new local migration is `supabase/migrations/20261117110226_favourites_messaging.sql`, recorded on the host as `20261117110623_favourites_messaging`; do not rerun it or either earlier migration. This section supersedes historical statements that favourites are session-only or messaging is not implemented.
