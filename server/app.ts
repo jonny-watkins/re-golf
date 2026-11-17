@@ -9,6 +9,7 @@ import type { AppConfig } from './config.js';
 import { socialRoutes, SocialError } from './social.js';
 import { orderRoutes, paymentWebhook, settleOrders } from './orders.js';
 import { stripePayments, type Payments } from './payments.js';
+import { adminRoutes } from './admin.js';
 import { timingSafeEqual, createHash } from 'node:crypto';
 
 export type ClientFactory = (token?: string) => SupabaseClient;
@@ -96,11 +97,25 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     if (handedness !== null || shaft_flex !== null || loft !== null) throw new HttpError(503, 'Golf details are awaiting setup. Please try again after the database update.');
     return basic;
   }
+  // Buyer fee settings for showing fee-inclusive prices. Null until payments and the settings function exist.
+  let pricing: { until: number; value: Promise<Record<string, unknown> | null> } | undefined;
+  function buyerPricing() {
+    if (!payments || !storageAdmin) return null;
+    if (!pricing || pricing.until < Date.now()) {
+      pricing = { until: Date.now() + 60_000, value: (async () => {
+        const { data, error } = await storageAdmin.rpc('marketplace_settings');
+        if (error || !data) return null;
+        const s = data as Record<string, unknown>;
+        return { checkoutOpen: s.checkout_enabled, feeFixedPence: s.fee_fixed_pence, feeBps: s.fee_bps, deliveryPence: s.delivery_pence, holdHours: s.hold_hours };
+      })() };
+    }
+    return pricing.value;
+  }
   app.get('/api/config', async (_req, res) => {
     const listingDetailsEnabled = await detailsReady();
     res.json({ configured, supabaseUrl: config.supabaseUrl, publishableKey: config.publishableKey,
       listingDetailsEnabled, photosEnabled: Boolean(storageAdmin) && listingDetailsEnabled,
-      paymentsEnabled: Boolean(payments) });
+      paymentsEnabled: Boolean(payments), pricing: await buyerPricing() });
   });
   app.get('/api/health', (_req, res) => res.json({ status: 'ok', configured }));
   app.use('/api', (_req, res, next) => {
@@ -241,6 +256,7 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
   });
   socialRoutes(app, authenticated, columns);
   if (payments && storageAdmin) orderRoutes(app, authenticated, storageAdmin, payments, config.origin);
+  if (storageAdmin && config.adminEmails.length) adminRoutes(app, authenticated, storageAdmin, config.adminEmails, app.locals.settleOrders);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found.' }));
   const handleError: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof z.ZodError) { res.status(400).json({ error: 'Check the submitted fields.', fields: error.flatten() }); return; }

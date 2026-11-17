@@ -4,6 +4,7 @@ import { artSvg } from './art';
 import { sampleListings } from './samples';
 import { setupMessages } from './messages';
 import { setupOrders } from './orders';
+import { setupAdmin } from './admin';
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -48,6 +49,10 @@ const sellForm = el<HTMLFormElement>('sell-form');
 const authForm = el<HTMLFormElement>('auth-form');
 const inbox = setupMessages(api, () => session?.user.id, () => openAuth());
 const orders = setupOrders(api, () => session?.user.id, () => openAuth());
+const support = setupAdmin(api, () => session?.user.id);
+// Buyer fee settings from the server, used to show the price a buyer will actually pay for the item.
+let pricing: { feeFixedPence: number; feeBps: number; deliveryPence: number } | null = null;
+const withFee = (pence: number) => pence + pricing!.feeFixedPence + Math.round(pence * pricing!.feeBps / 10000);
 let quotedListing = '';
 const holdNote = 'Re-Golf holds your payment until you have received the item and had time to check it. The seller is paid only after that.';
 
@@ -161,7 +166,7 @@ function renderCards() {
     <button class="icon-button save-button${saved.has(item.id) ? ' saved' : ''}" type="button" data-save="${item.id}" aria-label="${saved.has(item.id) ? 'Unsave club' : 'Save club'}" aria-pressed="${saved.has(item.id)}" ${item.sample ? 'disabled' : ''}>${saved.has(item.id) ? '♥' : '♡'}</button>${sortedPhotos(item)[0] ? photoImage(sortedPhotos(item)[0].id, `${item.brand} ${item.name}`) : artSvg(artMap[item.category])}</div>
     <div class="listing-info"><div class="listing-meta"><span class="category-label">${escapeHtml(item.category)}</span><span>${item.sample ? 'Example listing' : item.status === 'archived' ? 'Archived' : 'Seller listing'}</span></div>
     <h3>${escapeHtml(item.brand)} ${escapeHtml(item.name)}</h3><div class="listing-sub">${escapeHtml(item.location)} · ${escapeHtml(item.condition)}</div>
-    <div class="listing-bottom"><div class="listing-price">${pounds(item.price_pence)}</div><button class="details-link" type="button" data-listing="${item.id}">View details →</button></div></div></article>`).join('') : '<div class="empty-state">No listings here yet. Try another search or list your first club.</div>';
+    <div class="listing-bottom"><div class="listing-price">${pounds(item.price_pence)}${pricing && !item.sample ? `<small class="price-incl">${pounds(withFee(item.price_pence))} incl. buyer protection</small>` : ''}</div><button class="details-link" type="button" data-listing="${item.id}">View details →</button></div></div></article>`).join('') : '<div class="empty-state">No listings here yet. Try another search or list your first club.</div>';
   el('pagination').hidden = view === 'examples' || total <= 24;
   el<HTMLButtonElement>('previous-page').disabled = page <= 1;
   el<HTMLButtonElement>('next-page').disabled = page * 24 >= total;
@@ -215,7 +220,10 @@ function openListing(id: string) {
   el('dialog-visual').innerHTML = photos.length ? photoImage(photos[0].id, `${current.brand} ${current.name}`) : artSvg(artMap[current.category]);
   el('photo-gallery').innerHTML = photos.map((photo, index) => `<button type="button" data-gallery-photo="${photo.id}" aria-label="Show photo ${index + 1}" aria-pressed="${index === 0}">${photoImage(photo.id, `Photo ${index + 1}`)}</button>`).join('');
   el('dialog-specs').textContent = [current.handedness && `${current.handedness}-handed`, current.shaft_flex && `${current.shaft_flex} flex`, current.loft != null && `${current.loft}° loft`].filter(Boolean).join(' · ');
-  el('price-breakdown').textContent = `Club price: ${pounds(current.price_pence)}`;
+  el('price-breakdown').textContent = pricing && !current.sample
+    ? `Club price: ${pounds(current.price_pence)} · ${pounds(withFee(current.price_pence))} including buyer protection, plus ${pounds(pricing.deliveryPence)} tracked delivery`
+    : `Club price: ${pounds(current.price_pence)}`;
+  el('admin-takedown').hidden = !support.isAdmin || !!current.sample || current.status !== 'active';
   el('owner-actions').hidden = current.sample || current.seller_id !== session?.user.id || current.status !== 'active';
   el('message-seller').hidden = !!current.sample || current.seller_id === session?.user.id || current.status !== 'active';
   const buyable = orders.enabled && !current.sample && current.status === 'active' && current.seller_id !== session?.user.id;
@@ -335,6 +343,11 @@ sellDialog.addEventListener('cancel', event => { if (savingListing || changingPh
 el('account-button').addEventListener('click', () => openAuth());
 document.querySelectorAll<HTMLButtonElement>('[data-auth-mode]').forEach(button => button.addEventListener('click', () => openAuth(button.dataset.authMode as typeof authMode)));
 el('edit-listing').addEventListener('click', () => { if (current) { listingDialog.close(); openSell(current); } });
+el('admin-takedown').addEventListener('click', async () => {
+  if (!current) return;
+  try { if (await support.takedown(current.id, `${current.brand} ${current.name}`)) { listingDialog.close(); await loadListings(); } }
+  catch (error) { message('listing-message', errorMessage(error)); }
+});
 el('archive-listing').addEventListener('click', async () => {
   if (!current || !window.confirm('Archive this listing? It will no longer appear in public browsing.')) return;
   const button = el<HTMLButtonElement>('archive-listing'); button.disabled = true;
@@ -408,8 +421,9 @@ el('sign-out').addEventListener('click', async () => {
 async function initialise() {
   renderFilters();
   try {
-    const config = await api<{ configured: boolean; supabaseUrl: string; publishableKey: string; photosEnabled: boolean; listingDetailsEnabled: boolean; paymentsEnabled?: boolean }>('/api/config');
+    const config = await api<{ configured: boolean; supabaseUrl: string; publishableKey: string; photosEnabled: boolean; listingDetailsEnabled: boolean; paymentsEnabled?: boolean; pricing?: { feeFixedPence: number; feeBps: number; deliveryPence: number } | null }>('/api/config');
     orders.configure(Boolean(config.paymentsEnabled));
+    pricing = config.pricing || null;
     configured = config.configured;
     photosEnabled = config.photosEnabled;
     for (const id of ['club-handedness', 'club-shaft-flex', 'club-loft']) {
@@ -421,7 +435,7 @@ async function initialise() {
       auth.auth.onAuthStateChange((event, value) => {
         const previousUser = session?.user.id;
         session = value;
-        if (previousUser !== value?.user.id) { saved.clear(); savedOnly = false; inbox.clear(); orders.clear(); requestNumber++; setTimeout(() => void loadListings(), 0); }
+        if (previousUser !== value?.user.id) { saved.clear(); savedOnly = false; inbox.clear(); orders.clear(); support.clear(); setTimeout(() => void support.refresh(), 0); requestNumber++; setTimeout(() => void loadListings(), 0); }
         el('account-button').textContent = value ? 'My account' : 'Sign in';
         // Supabase callbacks must not await another auth method while holding the auth lock.
         if (event === 'PASSWORD_RECOVERY') setTimeout(() => openAuth('update'), 0);
@@ -435,6 +449,7 @@ async function initialise() {
       if (error) throw error;
       session = data.session;
       if (session && new URLSearchParams(window.location.search).get('auth') === 'recovery') openAuth('update');
+      void support.refresh();
       // Returning from the payment or payout-setup page.
       if (session && orders.handleReturn(new URLSearchParams(window.location.search))) history.replaceState(null, '', '/');
       message('connection-status', `Development preview: accounts and listings are connected. ${photosEnabled ? 'Photos are enabled.' : 'Photo uploads are awaiting setup.'} ${orders.enabled ? 'Payments are in test mode.' : 'Buying is not available yet.'} Professional verification is not available.`);

@@ -25,6 +25,8 @@ services:
         sync: false
       - key: STRIPE_CONNECT_WEBHOOK_SECRET
         sync: false
+      - key: ADMIN_EMAILS
+        sync: false
       - key: PREVIEW_ACCESS_PASSWORD
         generateValue: true
 # APP_ORIGIN defaults to Render's assigned HTTPS URL. For a custom domain,

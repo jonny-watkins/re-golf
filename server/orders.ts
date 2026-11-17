@@ -55,6 +55,9 @@ export async function handlePaymentEvent(admin: SupabaseClient, event: PaymentEv
     const order = must(await admin.from('orders').select('id').eq('payment_ref', event.paymentRef).maybeSingle(), 'Order lookup');
     if (!order) { console.error('Card dispute for unknown payment', event.id); return; }
     must(await admin.rpc('order_system', { p_action: 'chargeback', p_order: order.id, p_ref: event.disputeRef, p_event: event.id }), 'Card dispute handling');
+    // If the seller has been, or is about to be, paid, stop or take back the payout. Repeat-safe.
+    const clawback = await admin.rpc('order_clawback', { p_action: 'start', p_order: order.id, p_ref: event.disputeRef, p_refund: false });
+    if (clawback.error && !['PGRST202', '42883'].includes(clawback.error.code || '')) throw new Error('Payout clawback failed');
   }
 }
 
@@ -66,7 +69,16 @@ export async function handlePaymentEvent(admin: SupabaseClient, event: PaymentEv
 export async function settleOrders(admin: SupabaseClient, payments: Payments) {
   const swept = must(await admin.rpc('order_sweep'), 'Order sweep') as Record<string, number>;
   const columns = 'id,listing_id,buyer_id,seller_id,title,item_pence,fee_pence,delivery_pence,total_pence,status,funds,created_at,expires_at,checkout_ref,payment_ref';
-  const result = { ...swept, refunded: 0, released: 0, awaiting_payout_setup: 0, failed: 0 };
+  const result = { ...swept, reversed: 0, refunded: 0, released: 0, awaiting_payout_setup: 0, failed: 0 };
+  // Payouts being taken back come first: a refund may be waiting on the money returning.
+  const reversals = must(await admin.from('orders').select(columns + ',transfer_ref').eq('funds', 'reversal_due').order('updated_at').limit(50), 'Reversal queue') as unknown as OrderRow[];
+  for (const order of reversals) {
+    try {
+      const ref = await payments.reverseTransfer(order);
+      must(await admin.rpc('order_clawback', { p_action: 'reversed', p_order: order.id, p_ref: ref, p_refund: false }), 'Reversal record');
+      result.reversed++;
+    } catch (error) { result.failed++; console.error('Payout reversal failed for order', order.id, error instanceof Error ? error.message : ''); }
+  }
   const refunds = must(await admin.from('orders').select(columns).eq('funds', 'refund_due').order('updated_at').limit(50), 'Refund queue') as OrderRow[];
   for (const order of refunds) {
     try {

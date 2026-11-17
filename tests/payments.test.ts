@@ -20,7 +20,9 @@ function fakeAdmin(tables: Record<string, Row[]>, rpcError?: (name: string, args
       select: () => query, order: () => query, limit: () => query,
       eq: (key: string, value: unknown) => { rows = rows.filter(row => row[key] === value); return query; },
       in: (key: string, values: unknown[]) => { rows = rows.filter(row => values.includes(row[key])); return query; },
+      neq: (key: string, value: unknown) => { rows = rows.filter(row => row[key] !== value); return query; },
       maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
+      single: async () => ({ data: rows[0] ?? null, error: null }),
       update: (values: Row) => { update = values; return query; },
       upsert: async (values: Row) => { calls.push({ table, upsert: values }); return { error: null }; },
       then: (resolve: (value: unknown) => void) => {
@@ -97,13 +99,15 @@ test('a paid event must match the order total before the order is confirmed', as
   assert.deepEqual(accounts.calls, [{ table: 'seller_accounts', update: { payouts_enabled: true }, matched: 1 }]);
   const dispute = fakeAdmin({ orders: [{ id: 'o1', payment_ref: 'pi_1' }] });
   await handlePaymentEvent(dispute.client, { id: 'evt_3', type: 'chargeback', paymentRef: 'pi_1', disputeRef: 'dp_1' });
-  assert.deepEqual(dispute.calls, [{ rpc: 'order_system', p_action: 'chargeback', p_order: 'o1', p_ref: 'dp_1', p_event: 'evt_3' }]);
+  assert.deepEqual(dispute.calls, [{ rpc: 'order_system', p_action: 'chargeback', p_order: 'o1', p_ref: 'dp_1', p_event: 'evt_3' },
+    { rpc: 'order_clawback', p_action: 'start', p_order: 'o1', p_ref: 'dp_1', p_refund: false }]);
 });
 
 test('settlement refunds and releases what the database has decided, and nothing else', async () => {
   const moved: string[] = [];
   const payments = {
     accountReady: async (account: string) => account === 'acct_4',
+    reverseTransfer: async (o: OrderRow) => { moved.push(`reverse ${o.id} ${o.transfer_ref}`); return 'trr_' + o.id; },
     refund: async (o: OrderRow) => { moved.push(`refund ${o.id} ${o.total_pence}`); return 're_' + o.id; },
     transfer: async (o: OrderRow, account: string) => {
       if (o.id === 'broken') throw new Error('provider unavailable');
@@ -112,16 +116,18 @@ test('settlement refunds and releases what the database has decided, and nothing
   } as unknown as Payments;
   const admin = fakeAdmin({
     orders: [order('held', { funds: 'held', status: 'delivered' }), order('refund', { funds: 'refund_due', status: 'cancelled' }),
-      order('broken'), order('ready'), order('no-account', { seller_id: 's2' }), order('pending-account', { seller_id: 's3' }), order('missed-webhook', { seller_id: 's4' })],
+      order('broken'), order('ready'), order('no-account', { seller_id: 's2' }), order('pending-account', { seller_id: 's3' }), order('missed-webhook', { seller_id: 's4' }),
+      order('clawback', { funds: 'reversal_due', status: 'disputed', transfer_ref: 'tr_old' })],
     seller_accounts: [{ seller_id: 's1', provider_account: 'acct_1', payouts_enabled: true }, { seller_id: 's3', provider_account: 'acct_3', payouts_enabled: false },
       { seller_id: 's4', provider_account: 'acct_4', payouts_enabled: false }],
   });
   const result = await settleOrders(admin.client, payments);
   // The seller receives the item price plus delivery; the buyer fee stays with the platform.
   // 'missed-webhook': the seller finished onboarding but the status event never arrived; settlement re-checks.
-  assert.deepEqual(moved, ['refund refund 11165', 'transfer ready 10595 acct_1', 'transfer missed-webhook 10595 acct_4']);
-  assert.deepEqual([result.refunded, result.released, result.awaiting_payout_setup, result.failed], [1, 2, 2, 1]);
+  assert.deepEqual(moved, ['reverse clawback tr_old', 'refund refund 11165', 'transfer ready 10595 acct_1', 'transfer missed-webhook 10595 acct_4']);
+  assert.deepEqual([result.reversed, result.refunded, result.released, result.awaiting_payout_setup, result.failed], [1, 1, 2, 2, 1]);
   assert.deepEqual(admin.calls, [{ rpc: 'order_sweep' },
+    { rpc: 'order_clawback', p_action: 'reversed', p_order: 'clawback', p_ref: 'trr_clawback', p_refund: false },
     { rpc: 'order_system', p_action: 'refunded', p_order: 'refund', p_ref: 're_refund', p_event: null },
     { table: 'seller_accounts', update: { payouts_enabled: true }, matched: 1 },
     { rpc: 'order_system', p_action: 'released', p_order: 'ready', p_ref: 'tr_ready', p_event: null },
@@ -147,5 +153,55 @@ test('webhook endpoint bypasses the preview password but not signature checks', 
     const accepted = await post('good');
     assert.equal(accepted.status, 200);
     assert.deepEqual(admin.calls, [{ rpc: 'order_system', p_action: 'payment_succeeded', p_order: 'o1', p_ref: 'pi_1', p_event: 'evt_1' }]);
+  } finally { server.close(); }
+});
+
+test('support routes are invisible to non-administrators and audited for administrators', async () => {
+  const tables = {
+    orders: [{ id: '11111111-1111-4111-8111-111111111111', listing_id: 'l1', buyer_id: 'b', seller_id: 's', status: 'disputed', funds: 'held', title: 'Ping G430' }],
+    conversation_reports: [], profiles: [], order_events: [], order_addresses: [], conversations: [], admin_actions: [],
+    listings: [{ id: '22222222-2222-4222-8222-222222222222', status: 'active' }],
+  };
+  const admin = fakeAdmin(tables);
+  // The fake needs insert for the audit trail.
+  const from = (admin.client as any).from;
+  (admin.client as any).from = (table: string) => Object.assign(from(table), { insert: async (values: Row) => { admin.calls.push({ table, insert: values }); return { error: null }; } });
+  const users: Record<string, Row> = { boss: { id: 'admin-1', email: 'Boss@Example.com', email_confirmed_at: '2026-01-01' }, buyer: { id: 'b', email: 'buyer@example.com', email_confirmed_at: '2026-01-01' } };
+  const client = (token?: string) => ({ auth: { getUser: async () => ({ data: { user: users[token || ''] || null }, error: null }) } }) as unknown as SupabaseClient;
+  const config = { ...readConfig({ SUPABASE_URL: 'https://test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test', SUPABASE_STORAGE_SECRET: 'sb_secret_test', ADMIN_EMAILS: ' boss@example.com ,other@example.com' }) };
+  assert.deepEqual(config.adminEmails, ['boss@example.com', 'other@example.com']);
+  assert.throws(() => readConfig({ ADMIN_EMAILS: 'not-an-email' }), /ADMIN_EMAILS/);
+  assert.throws(() => readConfig({ ADMIN_EMAILS: 'boss@example.com' }), /SUPABASE_STORAGE_SECRET/);
+  const server = createApp(config, client, admin.client).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const call = async (who: string, path: string, body?: unknown) => {
+    const response = await fetch(url + path, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + who, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: response.status, data: await response.json() as any };
+  };
+  const order = '11111111-1111-4111-8111-111111111111', listing = '22222222-2222-4222-8222-222222222222';
+  try {
+    assert.deepEqual((await call('buyer', '/api/me/role')).data, { admin: false });
+    assert.deepEqual((await call('boss', '/api/me/role')).data, { admin: true });
+    for (const [path, body] of [['/api/admin/overview'], [`/api/admin/orders/${order}`], [`/api/admin/orders/${order}/resolve`, { decision: 'refund', note: 'because' }],
+      [`/api/admin/listings/${listing}/takedown`, { note: 'counterfeit' }], ['/api/admin/checkout', { enabled: false, note: 'incident' }]] as const) {
+      assert.equal((await call('buyer', path, body)).status, 404, path);
+      assert.equal((await call('nobody', path, body)).status, 401, path);
+    }
+    assert.equal(admin.calls.length, 0, 'non-administrators cause no database activity');
+    const overview = await call('boss', '/api/admin/overview');
+    assert.deepEqual([overview.status, overview.data.orders.length], [200, 1]);
+    assert.equal((await call('boss', `/api/admin/orders/${order}/resolve`, { decision: 'refund', note: '' })).status, 400, 'a reason is required');
+    admin.calls.length = 0;
+    const resolved = await call('boss', `/api/admin/orders/${order}/resolve`, { decision: 'refund', note: 'Item not as described' });
+    assert.equal(resolved.status, 200, JSON.stringify(resolved.data));
+    assert.deepEqual(admin.calls, [
+      { rpc: 'order_system', p_action: 'resolve_refund', p_order: order, p_ref: 'support:admin-1', p_event: null },
+      { table: 'admin_actions', insert: { admin_id: 'admin-1', action: 'order_refund', target: order, note: 'Item not as described' } }]);
+    admin.calls.length = 0;
+    assert.equal((await call('boss', `/api/admin/listings/${listing}/takedown`, { note: 'Counterfeit report' })).status, 200);
+    assert.equal(tables.listings[0].status, 'archived');
+    assert.equal(admin.calls.at(-1)?.insert?.action, 'listing_takedown');
+    assert.equal((await call('boss', `/api/admin/listings/${listing}/takedown`, { note: 'Counterfeit report' })).status, 404, 'already taken down');
   } finally { server.close(); }
 });

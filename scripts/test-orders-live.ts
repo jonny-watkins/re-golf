@@ -13,6 +13,10 @@ import { createClient } from '@supabase/supabase-js';
 import { readConfig } from '../server/config.js';
 import { settleOrders } from '../server/orders.js';
 import { stripePayments } from '../server/payments.js';
+import { createApp } from '../server/app.js';
+import { once } from 'node:events';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 const env = dotenv.parse(readFileSync('.env'));
 const config = readConfig(env as NodeJS.ProcessEnv);
@@ -25,7 +29,8 @@ const admin = createClient(config.supabaseUrl, config.storageSecret, options);
 const stripe = new Stripe(config.stripeSecretKey);
 const payments = stripePayments(config.stripeSecretKey, config.stripeWebhookSecret, config.stripeConnectWebhookSecret);
 
-type User = { id: string; token: string };
+type User = { id: string; token: string; email: string };
+let local: Server | undefined;
 const users: User[] = [];
 const listings: string[] = [];
 let passed = 0;
@@ -67,15 +72,15 @@ async function reserve(buyer: User, listing: string) {
 }
 
 try {
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     const email = `orders-test-${randomUUID()}@example.com`, password = randomUUID() + 'Aa1!';
     const made = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: 'Order test ' + i } });
     assert.ok(!made.error, made.error?.message);
     const login = await createClient(config.supabaseUrl, config.publishableKey, options).auth.signInWithPassword({ email, password });
     assert.ok(!login.error, login.error?.message);
-    users.push({ id: made.data.user!.id, token: login.data.session!.access_token });
+    users.push({ id: made.data.user!.id, token: login.data.session!.access_token, email });
   }
-  const [seller, alice, bob] = users;
+  const [seller, alice, bob, boss] = users;
   let listing = await newListing(seller);
   let order: { id: string; total_pence: number };
 
@@ -210,8 +215,49 @@ try {
     const paid = await admin.from('orders').select('id').eq('listing_id', listing).eq('status', 'paid');
     assert.deepEqual(paid.data!.map(found => found.id), [winner.id]);
   });
+  await check('support screen: only named administrators; a refund decision moves the money and is recorded', async () => {
+    // The preview has no administrators configured, so run this build locally against the same database and Stripe sandbox.
+    local = createApp({ ...config, adminEmails: [boss.email], previewPassword: '' }).listen(0, '127.0.0.1');
+    await once(local, 'listening');
+    const origin = 'http://127.0.0.1:' + (local.address() as AddressInfo).port;
+    const support = async (user: User, path: string, body?: unknown) => {
+      const response = await fetch(origin + path, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: 'Bearer ' + user.token, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      return { status: response.status, data: await response.json() as any };
+    };
+    listing = await newListing(seller, 1200);
+    order = await reserve(alice, listing);
+    const payment = await pay(order);
+    await api(seller, `/api/orders/${order.id}/dispatch`, { text: 'Evri H0123456789012345' });
+    await api(alice, `/api/orders/${order.id}/report_issue`, { text: 'Automated test: wrong club in the box' });
+    assert.deepEqual((await support(alice, '/api/me/role')).data, { admin: false });
+    assert.equal((await support(alice, '/api/admin/overview')).status, 404);
+    assert.equal((await support(seller, `/api/admin/orders/${order.id}/resolve`, { decision: 'release', note: 'I am the seller' })).status, 404);
+    assert.deepEqual((await support(boss, '/api/me/role')).data, { admin: true });
+    const overview = await support(boss, '/api/admin/overview');
+    const listed = overview.data.orders.find((found: any) => found.id === order.id);
+    assert.deepEqual([overview.status, listed?.status, listed?.funds, listed?.issue], [200, 'disputed', 'held', 'Automated test: wrong club in the box'], JSON.stringify(overview.data).slice(0, 300));
+    const detail = await support(boss, `/api/admin/orders/${order.id}`);
+    assert.deepEqual([detail.data.address?.postcode, detail.data.events.map((event: any) => event.action)], ['LS1 1AA', ['reserve', 'payment_succeeded', 'dispatch', 'report_issue']]);
+    assert.equal((await support(boss, `/api/admin/orders/${order.id}/resolve`, { decision: 'refund', note: 'x' })).status, 400);
+    const decided = await support(boss, `/api/admin/orders/${order.id}/resolve`, { decision: 'refund', note: 'Automated test: buyer evidence accepted' });
+    assert.deepEqual([decided.status, decided.data.order?.status, decided.data.order?.funds], [200, 'cancelled', 'refunded'], JSON.stringify(decided.data));
+    assert.deepEqual((await stripe.refunds.list({ payment_intent: payment.intent })).data.map(refund => refund.amount), [order.total_pence]);
+    assert.equal((await support(boss, `/api/admin/orders/${order.id}/resolve`, { decision: 'refund', note: 'second attempt' })).status, 409);
+    const history = (await admin.from('order_events').select('action,note').eq('order_id', order.id).order('id')).data!;
+    assert.deepEqual(history.slice(-2).map(event => event.action), ['resolve_refund', 'refunded']);
+    assert.equal(history.at(-2)!.note, 'support:' + boss.id);
+    // Listing takedown.
+    const bad = await newListing(seller, 900);
+    assert.equal((await support(alice, `/api/admin/listings/${bad}/takedown`, { note: 'not allowed' })).status, 404);
+    assert.equal((await support(boss, `/api/admin/listings/${bad}/takedown`, { note: 'Automated test: prohibited item' })).status, 200);
+    assert.equal(await listingStatus(bad), 'archived');
+    const toggle = await support(boss, '/api/admin/checkout', { enabled: true, note: 'Automated test: no change' });
+    assert.ok([200, 409].includes(toggle.status), 'switch works, or reports that the database update is pending');
+    console.log('     checkout switch:', toggle.status === 200 ? 'available' : 'waiting for the pending database update');
+  });
   console.log(`\nAll ${passed} hosted order checks passed.`);
 } finally {
+  local?.close();
   // Refund anything still held by test orders, then remove every fixture.
   const ids = users.map(user => user.id);
   if (ids.length) {
@@ -228,6 +274,7 @@ try {
     for (const account of accounts) { try { await stripe.v2.core.accounts.close(account.provider_account, { applied_configurations: ['recipient'] }); } catch { /* left in sandbox */ } }
     await admin.from('seller_accounts').delete().in('seller_id', ids);
     if (listings.length) await admin.from('listings').delete().in('id', listings);
+    await admin.from('admin_actions').delete().in('admin_id', ids).then(() => {}, () => {});
     for (const id of ids) await admin.auth.admin.deleteUser(id);
     const left = await admin.from('listings').select('id', { count: 'exact', head: true }).in('seller_id', ids);
     console.log(`Cleanup: removed ${orderIds.length} test orders, ${listings.length} test listings, ${ids.length} test accounts${left.count ? ` (WARNING: ${left.count} listings remain)` : ''}.`);

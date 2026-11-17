@@ -4,7 +4,7 @@ export type OrderRow = {
   id: string; listing_id: string; buyer_id: string; seller_id: string; title: string;
   item_pence: number; fee_pence: number; delivery_pence: number; total_pence: number;
   status: string; funds: string; created_at: string; expires_at: string;
-  checkout_ref: string | null; payment_ref: string | null;
+  checkout_ref: string | null; payment_ref: string | null; transfer_ref?: string | null;
 };
 export type Address = { name: string; line1: string; line2: string | null; city: string; postcode: string };
 export type PaymentEvent = { id: string } & (
@@ -25,6 +25,8 @@ export type Payments = {
   transfer(order: OrderRow, account: string): Promise<string>;
   createSellerAccount(sellerId: string, email: string | undefined): Promise<string>;
   onboardingLink(account: string, origin: string): Promise<string>;
+  /** Takes a seller's payout back in full (after a bank dispute or a support refund). */
+  reverseTransfer(order: OrderRow): Promise<string>;
   /** Asks the provider directly whether the seller can receive transfers yet. */
   accountReady(account: string): Promise<boolean>;
 };
@@ -122,6 +124,11 @@ export function stripePayments(secretKey: string, ...webhookSecrets: string[]): 
         transfer_group: order.id, source_transaction: charge, metadata: { order_id: order.id } },
         { idempotencyKey: `release-${order.id}` });
       return transfer.id;
+    },
+    async reverseTransfer(order) {
+      if (!order.transfer_ref) throw new Error('Order has no payout to take back');
+      const reversal = await stripe.transfers.createReversal(order.transfer_ref, { metadata: { order_id: order.id } }, { idempotencyKey: `reversal-${order.id}` });
+      return reversal.id;
     },
     async createSellerAccount(sellerId, email) {
       // Accounts v2 "recipient": the seller only receives transfers; Re-Golf is the merchant.

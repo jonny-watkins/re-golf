@@ -49,7 +49,8 @@ test('orders hold funds until delivery checks pass', async t => {
       create schema auth; create table auth.users(id uuid primary key,raw_user_meta_data jsonb,email_confirmed_at timestamptz);
       create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
       grant usage on schema public,auth to anon,authenticated,service_role; grant execute on function auth.uid() to anon,authenticated,service_role;`);
-    for (const file of ['202611140001_foundations.sql', '20261117110226_favourites_messaging.sql', '20261117150000_orders_escrow.sql'])
+    // Same order as the hosted database, including the retired simulation that the last migration removes.
+    for (const file of ['202611140001_foundations.sql', '20261117110226_favourites_messaging.sql', '20261117123645_test_checkout_orders.sql', '20261117150000_orders_escrow.sql', '20261117180000_support_and_clawback.sql'])
       await db.exec(await readFile(new URL(`../supabase/migrations/${file}`, import.meta.url), 'utf8'));
     for (const id of [seller, buyer, other, unverified])
       await db.query("insert into auth.users values($1,'{}',$2)", [id, id === unverified ? null : new Date().toISOString()]);
@@ -261,6 +262,64 @@ test('orders hold funds until delivery checks pass', async t => {
       await assert.rejects(db.query('update public.seller_accounts set payouts_enabled=true'), /permission denied/);
       await as(buyer);
       assert.equal((await db.query('select seller_id from public.seller_accounts')).rows.length, 0);
+    });
+
+    await t.test('support can read settings and switch checkout off; clients cannot', async () => {
+      await db.exec('reset role; set role service_role');
+      const settings = (await db.query<{ r: any }>('select public.marketplace_settings() as r')).rows[0].r;
+      assert.deepEqual([settings.checkout_enabled, settings.fee_fixed_pence, settings.fee_bps, settings.delivery_pence, settings.hold_hours], [true, 70, 500, 595, 48]);
+      assert.equal((await db.query<{ r: any }>('select public.set_checkout_enabled(false) as r')).rows[0].r.checkout_enabled, false);
+      listing = await newListing();
+      await assert.rejects(act(buyer, 'reserve', { listing, request: randomUUID() }), /not open yet/);
+      await assert.rejects(db.query('select public.set_checkout_enabled(true)'), /permission denied/);
+      await assert.rejects(db.query('select public.marketplace_settings()'), /permission denied/);
+      await assert.rejects(db.query('select * from public.admin_actions'), /permission denied/);
+      await db.exec('reset role; set role service_role');
+      await db.query('select public.set_checkout_enabled(true)');
+      await db.query("insert into public.admin_actions(admin_id,action,target) values($1,'checkout_on','settings')", [seller]);
+      // Orders already paid keep working while checkout is closed to new buyers.
+    });
+
+    await t.test('a payout can be stopped or taken back, then refunded', async () => {
+      const clawback = async (action: string, id: string, ref: string | null = null, refund = false) => {
+        await db.exec('reset role; set role service_role');
+        return (await db.query<{ r: Order }>('select public.order_clawback($1,$2,$3,$4) as r', [action, id, ref, refund])).rows[0].r;
+      };
+      // Queued but not yet paid out: stop it and hand the decision to support.
+      order = await paidOrder(listing);
+      await act(seller, 'dispatch', { order: order.id, text: 'Royal Mail RM123456789GB' });
+      await act(buyer, 'accept', { order: order.id });
+      order = await clawback('start', order.id, 'dp_2');
+      assert.deepEqual([order.status, order.funds], ['disputed', 'held']);
+      await assert.rejects(system('released', order.id, 'tr_no'), /not due for release/);
+      order = await system('resolve_release', order.id);
+      assert.deepEqual([order.status, order.funds], ['completed', 'release_due']);
+      // Already paid out: take the transfer back, then refund the buyer.
+      await system('released', order.id, 'tr_paid');
+      order = await clawback('start', order.id, 'support', true);
+      assert.deepEqual([order.status, order.funds], ['disputed', 'reversal_due']);
+      await assert.rejects(system('refunded', order.id, 're_early'), /No refund is due/);
+      order = await clawback('reversed', order.id, 'trr_1');
+      assert.deepEqual([order.status, order.funds, (order as any).reversal_ref], ['cancelled', 'refund_due', 'trr_1']);
+      assert.equal((await clawback('reversed', order.id, 'trr_again') as any).reversal_ref, 'trr_1');
+      assert.equal((await system('refunded', order.id, 're_2')).funds, 'refunded');
+      // Bank dispute after payout: money comes back from the seller and waits for the outcome.
+      listing = await newListing();
+      order = await paidOrder(listing);
+      await act(seller, 'dispatch', { order: order.id, text: 'Royal Mail RM123456789GB' });
+      await act(buyer, 'accept', { order: order.id });
+      await system('released', order.id, 'tr_3');
+      await clawback('start', order.id, 'dp_3');
+      assert.equal((await clawback('reversed', order.id, 'trr_3')).funds, 'reversed');
+      await assert.rejects(clawback('reversed', (await paidOrder(await newListing())).id, 'x'), /No payout is being taken back/);
+      await as(buyer);
+      await assert.rejects(db.query("select public.order_clawback('start',$1)", [order.id]), /permission denied/);
+    });
+
+    await t.test('the retired simulation is gone and the private schema is closed to clients', async () => {
+      const left = await admin("select to_regclass('public.test_orders') as a, to_regclass('public.test_listings') as b, to_regclass('private.test_checkout_settings') as c, to_regproc('public.test_checkout') as d");
+      assert.deepEqual(left.rows[0], { a: null, b: null, c: null, d: null });
+      assert.equal((await admin("select has_schema_privilege('authenticated','private','usage') as ok")).rows[0].ok, false);
     });
 
     await t.test('snapshots survive fee changes; blocked pairs cannot trade; history is recorded', async () => {

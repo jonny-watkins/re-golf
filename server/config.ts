@@ -10,6 +10,7 @@ export type AppConfig = {
   stripeSecretKey: string;
   stripeWebhookSecret: string;
   stripeConnectWebhookSecret: string;
+  adminEmails: string[];
 };
 
 export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
@@ -64,5 +65,9 @@ export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
     // Real money needs a deliberate second switch, so a pasted live key cannot take payments by accident.
     if (/^(sk|rk)_live_/.test(stripeSecretKey) && env.ALLOW_LIVE_PAYMENTS !== 'true') throw new Error('Live Stripe keys require ALLOW_LIVE_PAYMENTS=true. Use test keys until the launch checks pass.');
   }
-  return { supabaseUrl, publishableKey, storageSecret, origin: url.origin, port, host, trustProxyHops, previewPassword, stripeSecretKey, stripeWebhookSecret, stripeConnectWebhookSecret };
+  // Accounts allowed to use the support screen. Compared case-insensitively against confirmed sign-in emails.
+  const adminEmails = (env.ADMIN_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
+  if (adminEmails.some(value => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value))) throw new Error('ADMIN_EMAILS must be a comma-separated list of email addresses.');
+  if (adminEmails.length && !storageSecret) throw new Error('ADMIN_EMAILS requires SUPABASE_STORAGE_SECRET (the server-only sb_secret_ key).');
+  return { supabaseUrl, publishableKey, storageSecret, origin: url.origin, port, host, trustProxyHops, previewPassword, stripeSecretKey, stripeWebhookSecret, stripeConnectWebhookSecret, adminEmails };
 }
