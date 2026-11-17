@@ -3,7 +3,6 @@ import { categories, maxPhotos, maxPhotoBytes, type ListingPhoto, type Listing, 
 import { artSvg } from './art';
 import { sampleListings } from './samples';
 import { setupMessages } from './messages';
-import { setupCheckout } from './checkout';
 import { setupOrders } from './orders';
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -48,7 +47,6 @@ const authDialog = el<HTMLDialogElement>('auth-dialog');
 const sellForm = el<HTMLFormElement>('sell-form');
 const authForm = el<HTMLFormElement>('auth-form');
 const inbox = setupMessages(api, () => session?.user.id, () => openAuth());
-const checkout = setupCheckout(api, () => session?.user.id, () => openAuth());
 const orders = setupOrders(api, () => session?.user.id, () => openAuth());
 let quotedListing = '';
 const holdNote = 'Re-Golf holds your payment until you have received the item and had time to check it. The seller is paid only after that.';
@@ -410,8 +408,7 @@ el('sign-out').addEventListener('click', async () => {
 async function initialise() {
   renderFilters();
   try {
-    const config = await api<{ configured: boolean; supabaseUrl: string; publishableKey: string; photosEnabled: boolean; listingDetailsEnabled: boolean; testCheckoutEnabled?: boolean; paymentsEnabled?: boolean }>('/api/config');
-    el('checkout-test-button').hidden = !config.testCheckoutEnabled;
+    const config = await api<{ configured: boolean; supabaseUrl: string; publishableKey: string; photosEnabled: boolean; listingDetailsEnabled: boolean; paymentsEnabled?: boolean }>('/api/config');
     orders.configure(Boolean(config.paymentsEnabled));
     configured = config.configured;
     photosEnabled = config.photosEnabled;
@@ -424,7 +421,7 @@ async function initialise() {
       auth.auth.onAuthStateChange((event, value) => {
         const previousUser = session?.user.id;
         session = value;
-        if (previousUser !== value?.user.id) { saved.clear(); savedOnly = false; inbox.clear(); checkout.clear(); orders.clear(); requestNumber++; setTimeout(() => void loadListings(), 0); }
+        if (previousUser !== value?.user.id) { saved.clear(); savedOnly = false; inbox.clear(); orders.clear(); requestNumber++; setTimeout(() => void loadListings(), 0); }
         el('account-button').textContent = value ? 'My account' : 'Sign in';
         // Supabase callbacks must not await another auth method while holding the auth lock.
         if (event === 'PASSWORD_RECOVERY') setTimeout(() => openAuth('update'), 0);

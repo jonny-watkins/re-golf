@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#183c2d">
-  <meta name="description" content="Buy and sell pre-loved golf clubs, with optional PGA professional verification.">
+  <meta name="description" content="Buy and sell pre-loved golf clubs. Your payment is held until the club arrives and you have checked it.">
   <title>Re-Golf — Better clubs, back in play</title>
   <style>
     :root {
@@ -281,13 +281,12 @@
       </a>
       <div class="nav-links">
         <a href="#market">Browse clubs</a>
-        <a href="#verification">How verification works</a>
+        <a href="#verification">How buying works</a>
       </div>
       <div class="nav-actions">
         <button class="button button-outline" id="account-button" type="button">Sign in</button>
         <button class="button button-outline" id="messages-button" type="button">Messages</button>
         <button class="button button-outline" id="orders-button" type="button" hidden>Orders</button>
-        <button class="button button-outline" id="checkout-test-button" type="button" hidden>Test checkout</button>
         <button class="icon-button" id="saved-filter" type="button" aria-label="Show saved clubs" title="Saved clubs">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 8.8c0 4.1-8.5 10-8.5 10s-8.5-5.9-8.5-10a4.5 4.5 0 0 1 8.5-2.1 4.5 4.5 0 0 1 8.5 2.1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         </button>
@@ -312,7 +311,7 @@
           <div class="hero-proof">
             <span><b>UK-wide</b> marketplace</span>
             <span><b>Buyer-paid</b> delivery &amp; fees</span>
-            <span><b>Coming later</b> pro checks</span>
+            <span><b>Protected</b> payment held until delivery</span>
           </div>
         </div>
         <div class="hero-art" aria-hidden="true">
@@ -327,7 +326,7 @@
             <circle cx="193" cy="174" r="13" fill="#fffdf3" stroke="#d7ed9b" stroke-width="3"/>
             <path d="M85 324c34-20 75-16 99-2m-87 12c37-18 77-15 101 0" stroke="#b3c69d" stroke-width="3" stroke-linecap="round"/>
           </svg>
-          <div class="floating-tag tag-check"><span class="tag-check-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 12 4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Pro checks planned<small>Not available yet</small></span></div>
+          <div class="floating-tag tag-check"><span class="tag-check-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 12 4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Buyer protection<small>Paid out after delivery</small></span></div>
           <div class="floating-tag tag-save"><span><b>Good gear,</b><small>ready for another round</small></span></div>
         </div>
       </div>
@@ -344,10 +343,10 @@
       <div class="wrap trust-card">
         <div>
           <div class="eyebrow">Play with confidence</div>
-          <h2>Not sure it’s the real deal?</h2>
-          <p>Choose an optional review by a PGA professional at checkout. The demo adds a £10 verification fee plus estimated route postage, all shown to the buyer before they commit.</p>
+          <h2>Your money is held until the club is in your hands.</h2>
+          <p>Pay securely through Re-Golf. We hold your payment while the seller posts the club with tracking. Once it arrives you have 48 hours to check it. Only then is the seller paid. If it never ships, you are refunded automatically.</p>
         </div>
-        <div class="trust-price"><strong>£10</strong><span>verification + postage</span></div>
+        <div class="trust-price"><strong>48 hrs</strong><span>to check your club</span></div>
       </div>
     </section>
 
@@ -375,7 +374,7 @@
   <footer>
     <div class="wrap footer-row">
       <a class="brand" href="#" aria-label="Re-Golf home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 19 14.8 5m0 0 2.2 1.2M14.8 5l-2.2-1.2M7 19c-.8 1.4-2.1 2.1-3.6 1.6-1.1-.4-1.5-1.4-1.1-2.4.4-1.1 1.8-1.8 3.6-1.5l2.2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.5" cy="18.5" r="2" fill="#d7ed9b"/></svg></span>Re-Golf</a>
-      <div class="footer-note">Re-Golf development preview. Purchases are not yet available. Example listings are labelled and kept separate from seller listings.</div>
+      <div class="footer-note">Re-Golf development preview. Payments run in test mode: no real money moves. Example listings are labelled and kept separate from seller listings.</div>
     </div>
   </footer>
 
@@ -431,7 +430,7 @@
   <dialog id="messages-dialog" aria-labelledby="messages-title">
     <div class="dialog-inner">
       <div class="dialog-head"><h2 id="messages-title">Messages</h2><button class="icon-button" type="button" data-close-dialog aria-label="Close messages">×</button></div>
-      <p>Ask about a club and keep the conversation here. Buying and payments are not available yet.</p>
+      <p>Ask about a club and keep the conversation here. Always pay through Re-Golf checkout so your payment is protected.</p>
       <div id="conversation-list" class="conversation-list"></div>
       <div class="message-actions"><button id="previous-conversations" type="button" class="button button-light">Previous</button><span id="conversation-page"></span><button id="next-conversations" type="button" class="button button-light">Next</button><button id="refresh-messages" type="button" class="button button-outline">Refresh</button></div>
       <section id="thread-panel" hidden aria-labelledby="thread-title">
@@ -480,22 +479,5 @@
     </div>
   </dialog>
   <script type="module" src="/src/main.ts"></script>
-  <dialog id="checkout-test-dialog" aria-labelledby="checkout-test-title">
-    <div class="dialog-inner">
-      <div class="dialog-head"><h2 id="checkout-test-title">Checkout testing</h2><button type="button" class="button button-light" data-close-dialog>Close</button></div>
-      <p><strong>Simulation only. No money moves, no parcel is sent and no seller payout occurs.</strong> These test items are separate from marketplace listings. Prices and fees are illustrative.</p>
-      <form id="test-item-form">
-        <div class="field"><label for="test-item-title">Test item name</label><input id="test-item-title" maxlength="70" required value="Practice driver"></div>
-        <div class="field"><label for="test-item-price">Item price (£)</label><input id="test-item-price" type="number" min="1" max="20000" step="0.01" required value="100"></div>
-        <button type="submit" class="button button-dark">Create test item as seller</button>
-      </form>
-      <p>Use a different account to buy a test item. Reservations last 15 minutes.</p>
-      <button id="test-checkout-refresh" type="button" class="button button-outline">Refresh items and orders</button>
-      <p id="test-checkout-status" role="status" aria-live="polite"></p>
-      <h3>Test items</h3><div id="test-inventory"></div>
-      <h3>Your test purchases and sales</h3><div id="test-orders"></div>
-      <p>Showing the latest 50 items and your latest 50 orders. Delivery buttons simulate progress; payment-provider integration comes later.</p>
-    </div>
-  </dialog>
 </body>
 </html>

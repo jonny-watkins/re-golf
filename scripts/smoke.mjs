@@ -11,7 +11,9 @@ await new Promise(resolve => probe.close(resolve));
 const origin = `http://127.0.0.1:${port}`;
 const child = spawn(process.execPath, ['dist/server.js'], {
   env: { ...process.env, NODE_ENV: 'production', PORT: String(port), APP_ORIGIN: origin,
-    RENDER: '', SUPABASE_URL: '', SUPABASE_PUBLISHABLE_KEY: '', SUPABASE_STORAGE_SECRET: '', PREVIEW_ACCESS_PASSWORD: '', TRUST_PROXY_HOPS: '0' },
+    RENDER: '', SUPABASE_URL: '', SUPABASE_PUBLISHABLE_KEY: '', SUPABASE_STORAGE_SECRET: '', PREVIEW_ACCESS_PASSWORD: '', TRUST_PROXY_HOPS: '0',
+    // Keep a developer's local .env payment keys out of the unconfigured smoke run.
+    STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '', STRIPE_CONNECT_WEBHOOK_SECRET: '' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let output = '';

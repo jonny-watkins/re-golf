@@ -7,7 +7,6 @@ export type AppConfig = {
   host: string;
   trustProxyHops: number;
   previewPassword: string;
-  testCheckoutEnabled: boolean;
   stripeSecretKey: string;
   stripeWebhookSecret: string;
   stripeConnectWebhookSecret: string;
@@ -51,8 +50,6 @@ export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
   if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 5) {
     throw new Error('TRUST_PROXY_HOPS must be an integer from 0 to 5.');
   }
-  // The simulated checkout is a development aid. It stays off unless explicitly enabled.
-  const testCheckoutEnabled = env.TEST_CHECKOUT_ENABLED === 'true';
   const stripeSecretKey = env.STRIPE_SECRET_KEY?.trim() || '';
   const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET?.trim() || '';
   if (Boolean(stripeSecretKey) !== Boolean(stripeWebhookSecret)) throw new Error('Set both STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, or neither.');
@@ -67,5 +64,5 @@ export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
     // Real money needs a deliberate second switch, so a pasted live key cannot take payments by accident.
     if (/^(sk|rk)_live_/.test(stripeSecretKey) && env.ALLOW_LIVE_PAYMENTS !== 'true') throw new Error('Live Stripe keys require ALLOW_LIVE_PAYMENTS=true. Use test keys until the launch checks pass.');
   }
-  return { supabaseUrl, publishableKey, storageSecret, origin: url.origin, port, host, trustProxyHops, previewPassword, testCheckoutEnabled, stripeSecretKey, stripeWebhookSecret, stripeConnectWebhookSecret };
+  return { supabaseUrl, publishableKey, storageSecret, origin: url.origin, port, host, trustProxyHops, previewPassword, stripeSecretKey, stripeWebhookSecret, stripeConnectWebhookSecret };
 }

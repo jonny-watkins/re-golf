@@ -7,7 +7,6 @@ import { categories, listingColumns, listingInput, maxPhotoBytes } from '../shar
 import { normalisePhoto } from './images.js';
 import type { AppConfig } from './config.js';
 import { socialRoutes, SocialError } from './social.js';
-import { checkoutRoutes } from './checkout.js';
 import { orderRoutes, paymentWebhook, settleOrders } from './orders.js';
 import { stripePayments, type Payments } from './payments.js';
 import { timingSafeEqual, createHash } from 'node:crypto';
@@ -101,7 +100,7 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     const listingDetailsEnabled = await detailsReady();
     res.json({ configured, supabaseUrl: config.supabaseUrl, publishableKey: config.publishableKey,
       listingDetailsEnabled, photosEnabled: Boolean(storageAdmin) && listingDetailsEnabled,
-      testCheckoutEnabled: config.testCheckoutEnabled, paymentsEnabled: Boolean(payments) });
+      paymentsEnabled: Boolean(payments) });
   });
   app.get('/api/health', (_req, res) => res.json({ status: 'ok', configured }));
   app.use('/api', (_req, res, next) => {
@@ -241,7 +240,6 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     res.type('image/webp').send(Buffer.from(await result.data.arrayBuffer()));
   });
   socialRoutes(app, authenticated, columns);
-  if (config.testCheckoutEnabled) checkoutRoutes(app, authenticated);
   if (payments && storageAdmin) orderRoutes(app, authenticated, storageAdmin, payments, config.origin);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found.' }));
   const handleError: ErrorRequestHandler = (error, _req, res, _next) => {
