@@ -24,8 +24,11 @@ What stands between this and a publishable app:
 - [x] [D] Baseline recorded: typecheck clean, 54/54 tests pass on the working tree (17 Nov). Now 76/76.
 - [x] [D] Simulated checkout put behind `TEST_CHECKOUT_ENABLED`, off by default and not set on Render.
 - [x] [J] Simulation migration `20261117123645_test_checkout_orders.sql`: checked 17 Nov — it **is applied** to the development database (`test_listings` and `test_orders` exist, both empty). Harmless: the real order flow below does not depend on it or conflict with it. When the simulation is deleted, add a migration that drops those two tables, the two `test_checkout` functions and `private.test_checkout_settings`, and revokes `usage` on schema `private` from `authenticated`.
-- [ ] [D] Delete the simulation once the real flow has passed a hosted test: `server/checkout.ts`, `src/checkout.ts`, `tests/checkout.test.ts`, `scripts/test-checkout-live.ts`, its migration, the "Checkout testing" dialog and the flag. Left in place for now because the files are uncommitted and could not be recovered.
-- [ ] [J] Review and commit this work (nothing has been committed or pushed).
+- [x] [D] Simulation code deleted (17 Nov). Its database tables are dropped by the pending migration below.
+- [x] [D] Work committed and pushed to the `payments` branch; the preview deploys from that branch. `main` is untouched as the fallback.
+- [ ] [J] **Paste `supabase/migrations/20261117180000_support_and_clawback.sql` into the Supabase SQL Editor and run it once.** It switches on: reviews, the checkout on/off switch, fee-inclusive prices on listings, the support audit trail, payout clawback, and removes the old simulation tables. Everything else already works without it.
+- [ ] [J] **Choose the support administrators:** set `ADMIN_EMAILS` on Render (and in local `.env`) to the sign-in email(s) allowed to open the Support screen, comma-separated. Until then the screen is off.
+- [ ] [J] Look over the `payments` branch and merge it into `main` when happy.
 
 ## 1. Decisions
 
@@ -46,7 +49,7 @@ Still open:
 
 - [ ] [J] Is £5.95 right for golf clubs? A tracked parcel long enough for a driver usually costs more. Consider a price per category (clubs vs. bags vs. small items).
 - [ ] [J] Scope confirmation: UK only, GBP, individual sellers, one item per order. Professional verification deferred.
-- [ ] [J] **Price display.** UK rules on "drip pricing" (DMCC Act 2024) expect unavoidable fees to be included in the headline price. Listing cards should probably show the price including the buyer fee, as Vinted does. Confirm with the policy review in section 7.
+- [x] [D] Listing cards and the listing page show the price including the buyer protection fee (appears once the pending migration is applied). [J] still to confirm the exact wording with the policy review in section 7.
 
 ## 2. Order and escrow core [D]
 
@@ -64,7 +67,7 @@ The database decides what should happen to the money; the server carries it out 
 - [x] Server-enforced checkout switch in the database, **off by default**.
 - [x] API routes (`/api/orders…`, `/api/payouts/onboard`) and an Orders screen for buyers and sellers; "Buy now" on listings shows the full server-calculated price before payment.
 - [x] Tests: `tests/orders.test.ts` (database rules, 16 scenarios), `tests/payments.test.ts` (webhook, settlement, configuration).
-- [ ] The Orders screen and "Buy now" have not been exercised in a browser yet (needs the migration and Stripe keys below).
+- [x] Orders screen and "Buy now" exercised in a real (headless Edge) browser on the preview: `npm run test:orders:browser`.
 
 ## 3. Stripe integration (test mode)
 
@@ -81,10 +84,13 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [x] [J]/[D] Put `STRIPE_SECRET_KEY` (sk_test_…) `STRIPE_WEBHOOK_SECRET` (whsec_… of the "Your account" destination) and `STRIPE_CONNECT_WEBHOOK_SECRET` (whsec_… of the "Connected accounts" destination) into Render and local `.env`. Never into chat or the repository.
 - [x] [J] Migration `20261117150000_orders_escrow.sql` applied to the development database and buying switched on there (17 Nov).
 - [x] [D] Hosted acceptance, `npx tsx scripts/test-orders-live.ts` (17 Nov, 11/11 on the Render preview with the Stripe sandbox): quote, two simultaneous buyers, privacy, cancel closes the Stripe checkout, signed payment holds funds, duplicate and forged webhooks, address visibility, mandatory tracking, 48-hour hold, early release, payout waiting for onboarding, problem report then full refund through Stripe, non-dispatch refund, late payment refunded not double-sold. Payment arrival is simulated with a real test-card charge plus a signed event.
-- [ ] [J] One manual browser purchase with Stripe's test card, including seller payout onboarding and the transfer to the seller (the only parts a script cannot do).
-- [ ] [D] Declined-card and abandoned-checkout behaviour observed in the browser.
-- [ ] [D] Charge refunded or disputed **after** release: reverse the transfer and record it (not built).
-- [ ] [D] Daily reconciliation script: Stripe balance transactions vs `orders`; any difference is an alert.
+- [x] [D] Browser purchase on the preview with Stripe's test card (17 Nov): genuine Stripe webhook marked the order paid, funds held, delivery address saved, seller posted with tracking, buyer confirmed and released, the preview server transferred £10.95 to the seller by itself, seller screen showed "sent". The connected-accounts webhook was subscribed to the wrong event (`account.external_account.updated`); corrected to `account.updated` in the sandbox and proven.
+- [ ] [J] Click through Stripe's payout setup form once as a seller (Orders → Set up payouts). Stripe shows a CAPTCHA to scripts, so this one step was not automated; the payout itself was proven with a test seller set up through Stripe's API. Test values: phone "use test number", code 000000, date of birth 01/01/1901, address line `address_full_match`, sort code 108800, account 00012345.
+- [x] [D] Checkout limited to cards (Apple Pay and Google Pay included); Klarna and other pay-later methods are off. Buyer email is prefilled.
+- [ ] [D] Declined-card behaviour observed in the browser (abandonment and expiry are covered by the hosted checks).
+- [x] [D] Bank dispute or support refund after the seller has been paid: the transfer is taken back, then the buyer refunded if that was the decision. Database rules tested; **not yet run against Stripe** because it needs the pending migration.
+- [x] [D] Reconciliation: `npm run orders:reconcile` compares Stripe charges, refunds and seller transfers with the orders table in both directions and exits non-zero on any difference. First run correctly flagged the £100 sample payment Stripe's own setup guide created (no order behind it); refund or ignore it.
+- [ ] [D] Schedule the reconciliation daily and alert on failure (needs the production host).
 - [ ] [D] The free Render service sleeps when idle, which delays webhooks and the 5-minute settlement. Acceptable for testing; production needs an always-on plan.
 
 ## 4. Delivery and completion [D]
@@ -95,7 +101,7 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [x] Buyer can report a problem, which freezes payment.
 - [ ] Richer issue handling: photos, seller response, return postage, partial refunds.
 - [ ] Delete delivery addresses a set time after completion (retention).
-- [ ] Reviews: one per participant per completed order.
+- [x] Reviews: buyer and seller can each leave one rating and comment after an order completes; the seller's average shows on their listings. Database rules tested; screens appear once the pending migration is applied.
 
 ## 5. Notifications and email [D]/[J]
 
@@ -105,7 +111,8 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 
 ## 6. Admin and support [D]/[J]
 
-- [ ] Role-protected admin page: reports queue, orders, disputes with release/refund buttons, listing takedown, user suspension. Every action written to the audit trail.
+- [x] Support screen for administrators named in `ADMIN_EMAILS`: orders needing a decision (release to seller or refund buyer), order history with the buyer–seller messages, reports queue, take a listing off sale, pause all new purchases. Every action requires a reason and is audited. Non-administrators get a plain "not found". Hosted test passed (`npm run test:orders:live`, check 12).
+- [ ] User suspension (block an account from listing, buying and messaging).
 - [ ] [J] Named support owner, support mailbox, and a review cadence for reports.
 - [ ] Account deletion. Today it would fail or destroy records: conversations, messages and (now) orders reference the profile. Needs anonymise-and-retain for anything financial.
 
@@ -121,10 +128,12 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 
 - [ ] [J] Domain; separate **production** Supabase project and Render service (paid plan — the free plan sleeps and would miss webhooks).
 - [ ] Remove the preview password gate for production; keep `noindex` off; tighten CSP.
-- [ ] Error monitoring and alerting (the server currently logs only the error name).
+- [x] Unexpected server errors are logged with the route and stack trace.
+- [ ] Error monitoring service and alerting.
 - [ ] Database backups with one rehearsed restore.
 - [ ] Photo delivery: every image is proxied through the Node server with `no-store`. Fine for a preview, slow and costly in public. Move to short-lived signed URLs or private caching.
-- [ ] Search covers brand and description as well as name; price/condition filters.
+- [x] Search matches every word across name, brand and description ("Ping driver" now works).
+- [ ] Price and condition filters.
 - [ ] Remove "Development preview" banners and example listings from the production build.
 - [ ] Accessibility and slow-network pass on mobile.
 - [ ] Rate limiter is in-memory: fine for one instance, revisit before scaling out.

@@ -13,7 +13,10 @@
     "test": "tsx --test tests/*.test.ts",
     "test:smoke": "node scripts/smoke.mjs",
     "build": "npm run check && vite build && esbuild server/index.ts --bundle --platform=node --packages=external --format=esm --outfile=dist/server.js",
-    "start": "node --env-file-if-exists=.env dist/server.js"
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "orders:reconcile": "tsx scripts/reconcile-orders.ts",
+    "test:orders:live": "tsx scripts/test-orders-live.ts",
+    "test:orders:browser": "tsx scripts/test-orders-browser.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

@@ -213,6 +213,16 @@ function openListing(id: string) {
   el('listing-dialog-title').textContent = `${current.brand} ${current.name}`;
   el('listing-dialog-subtitle').textContent = current.sample ? 'Example listing · not for sale' : `${current.category} · ${current.status}`;
   el('dialog-location').textContent = `Seller location: ${current.location}`;
+  el('seller-rating').textContent = '';
+  if (!current.sample) {
+    const shown = current.id;
+    void api<{ count: number; average: number | null; recent: { rating: number; comment: string }[] }>(`/api/sellers/${current.seller_id}/rating`).then(rating => {
+      if (current?.id !== shown) return;
+      el('seller-rating').textContent = rating.count
+        ? `Seller rating: ${rating.average} out of 5 from ${rating.count} review${rating.count === 1 ? '' : 's'}${rating.recent[0] ? ` — “${rating.recent[0].comment}”` : ''}`
+        : 'New seller: no reviews yet.';
+    }).catch(() => {});
+  }
   el('dialog-condition').textContent = current.condition;
   el('dialog-description').textContent = current.description;
   el('dialog-visual').style.setProperty('--tone', '#e5ebdb');

@@ -1,6 +1,7 @@
 import type { Express, Request } from 'express';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { searchFilters } from './search.js';
 
 export class SocialError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -19,7 +20,7 @@ export function socialRoutes(app: Express, authenticate: (req: Request) => Promi
     const { db, user } = await authenticate(req);
     const input = z.object({ page: z.coerce.number().int().min(1).max(10000).default(1), q: z.string().trim().max(100).default(''), category: z.string().max(40).optional() }).strict().parse(req.query);
     let query = db.from('favourites').select(`listing_id,created_at,listings!inner(${await listingColumns()})`, { count: 'exact' }).eq('user_id', user.id).eq('listings.status', 'active');
-    if (input.q) query = query.ilike('listings.name', `%${input.q.replace(/[\\%_]/g, '\\$&')}%`);
+    for (const filter of searchFilters(input.q)) query = query.or(filter, { referencedTable: 'listings' });
     if (input.category) query = query.eq('listings.category', input.category);
     const { data, error, count } = await query.order('created_at', { ascending: false }).order('listing_id').range((input.page - 1) * 24, input.page * 24 - 1);
     check(error); res.json({ listings: (data as unknown as { listings: unknown }[] | null)?.map(row => row.listings), total: count, page: input.page });

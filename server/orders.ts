@@ -128,7 +128,11 @@ export function orderRoutes(app: Express, authenticate: Authenticate, admin: Sup
     // Row-level security returns an address only to the buyer, or to the seller while they need to post.
     const addresses = orders.length ? check(await db.from('order_addresses').select('order_id,name,line1,line2,city,postcode').in('order_id', orders.map(order => order.id))) : [];
     const account = check(await db.from('seller_accounts').select('payouts_enabled').eq('seller_id', user.id).maybeSingle()) as { payouts_enabled: boolean } | null;
-    res.json({ orders, addresses, payouts: { started: Boolean(account), enabled: Boolean(account?.payouts_enabled) } });
+    // Reviews arrive with a later migration; until then the feature is simply off.
+    const reviewed = await db.from('reviews').select('order_id').eq('reviewer_id', user.id);
+    const reviewsEnabled = !reviewed.error;
+    res.json({ orders, addresses, payouts: { started: Boolean(account), enabled: Boolean(account?.payouts_enabled) },
+      reviewsEnabled, reviewed: reviewsEnabled ? reviewed.data!.map(row => row.order_id) : [] });
   });
   app.post('/api/orders/quote', async (req, res) => {
     const { db } = await authenticate(req);
@@ -157,6 +161,15 @@ export function orderRoutes(app: Express, authenticate: Authenticate, admin: Sup
     if (!order) throw new SocialError(404, 'Order not found.');
     if (order.status !== 'awaiting_payment' || Date.parse(order.expires_at) <= Date.now()) throw new SocialError(409, 'This checkout has expired. Start again from the listing.');
     res.json({ checkout_url: await startPayment(order, user.email) });
+  });
+  app.post('/api/orders/:id/review', async (req, res) => {
+    const { db } = await authenticate(req);
+    const id = z.uuid().parse(req.params.id);
+    const { rating, comment } = z.object({ rating: z.number().int().min(1).max(5), comment: z.string().trim().max(500).default('') }).strict().parse(req.body);
+    const made = await db.rpc('leave_review', { p_order: id, p_rating: rating, p_comment: comment });
+    if (made.error && ['PGRST202', '42883'].includes(made.error.code || '')) throw new SocialError(503, 'Reviews are not available yet.');
+    check(made);
+    res.status(201).json({ ok: true });
   });
   app.post('/api/orders/:id/:action', async (req, res) => {
     const { db } = await authenticate(req);

@@ -73,7 +73,7 @@ export function setupOrders(api: Api, user: () => string | undefined, signIn: ()
     }
   }
 
-  function renderOrder(parent: HTMLElement, order: Order, address: Address | undefined, payoutsEnabled: boolean) {
+  function renderOrder(parent: HTMLElement, order: Order, address: Address | undefined, payoutsEnabled: boolean, canReview: boolean) {
     const buying = order.buyer_id === user();
     const row = add(parent, 'section', '', 'order-row');
     add(row, 'h4', order.title);
@@ -112,12 +112,24 @@ export function setupOrders(api: Api, user: () => string | undefined, signIn: ()
         await act(order, 'report_issue', input.value.trim())();
       });
     }
+    if (canReview) {
+      const rating = add(actions, 'select');
+      rating.setAttribute('aria-label', 'Rating');
+      for (const [value, label] of [['5', '5 - Excellent'], ['4', '4 - Good'], ['3', '3 - OK'], ['2', '2 - Poor'], ['1', '1 - Bad']]) { const option = add(rating, 'option', label); option.value = value; }
+      const comment = add(actions, 'input');
+      comment.placeholder = buying ? 'How was the seller? (optional)' : 'How was the buyer? (optional)'; comment.maxLength = 500; comment.setAttribute('aria-label', 'Review comment');
+      button(actions, 'Leave review', async () => {
+        await api(`/api/orders/${order.id}/review`, { method: 'POST', body: JSON.stringify({ rating: Number(rating.value), comment: comment.value.trim() }) });
+        status('Thank you. Your review has been posted.');
+        await load();
+      });
+    }
     if (!actions.childElementCount) actions.remove();
   }
 
   async function load() {
     const gen = generation;
-    const data = await api<{ orders: Order[]; addresses: Address[]; payouts: { started: boolean; enabled: boolean } }>('/api/orders');
+    const data = await api<{ orders: Order[]; addresses: Address[]; payouts: { started: boolean; enabled: boolean }; reviewsEnabled?: boolean; reviewed?: string[] }>('/api/orders');
     if (gen !== generation) return;
     const purchases = el('orders-purchases'), sales = el('orders-sales'), payouts = el('orders-payouts');
     purchases.replaceChildren(); sales.replaceChildren(); payouts.replaceChildren();
@@ -132,7 +144,9 @@ export function setupOrders(api: Api, user: () => string | undefined, signIn: ()
         location.assign(link.url);
       }, selling.length > 0);
     }
-    for (const order of data.orders) renderOrder(order.buyer_id === user() ? purchases : sales, order, addressByOrder.get(order.id), data.payouts.enabled);
+    const reviewed = new Set(data.reviewed || []);
+    for (const order of data.orders) renderOrder(order.buyer_id === user() ? purchases : sales, order, addressByOrder.get(order.id), data.payouts.enabled,
+      Boolean(data.reviewsEnabled) && order.status === 'completed' && !reviewed.has(order.id));
     if (!purchases.childElementCount) purchases.textContent = 'No purchases yet.';
     if (!sales.childElementCount) sales.textContent = 'No sales yet.';
   }

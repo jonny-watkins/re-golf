@@ -86,4 +86,50 @@ $$;
 revoke all on function public.order_clawback(text, uuid, text, boolean) from public, anon, authenticated;
 grant execute on function public.order_clawback(text, uuid, text, boolean) to service_role;
 
+-- 5. Reviews: one from the buyer and one from the seller, only after an order completes.
+create table public.reviews (
+  order_id uuid not null references public.orders(id),
+  reviewer_id uuid not null references public.profiles(id),
+  reviewee_id uuid not null references public.profiles(id),
+  rating smallint not null check (rating between 1 and 5),
+  comment text not null default '' check (char_length(comment) <= 500),
+  created_at timestamptz not null default now(),
+  primary key (order_id, reviewer_id),
+  check (reviewer_id <> reviewee_id)
+);
+create index reviews_reviewee on public.reviews (reviewee_id, created_at desc);
+alter table public.reviews enable row level security;
+revoke all on public.reviews from public, anon, authenticated;
+-- Ratings are public; who wrote each one, and for which order, is visible only to signed-in members.
+grant select (reviewee_id, rating, comment, created_at) on public.reviews to anon;
+grant select on public.reviews to authenticated;
+grant all on public.reviews to service_role;
+create policy reviews_public_read on public.reviews for select to anon, authenticated using (true);
+
+create function public.leave_review(p_order uuid, p_rating integer, p_comment text default '')
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  actor uuid := auth.uid();
+  ord public.orders;
+  made public.reviews;
+begin
+  if actor is null or not exists (select 1 from auth.users where id = actor and email_confirmed_at is not null) then
+    raise exception 'Confirm your email before leaving a review' using errcode = '42501';
+  end if;
+  select * into ord from public.orders where id = p_order and actor in (buyer_id, seller_id);
+  if not found then raise exception 'Order unavailable' using errcode = 'P0002'; end if;
+  if ord.status <> 'completed' then raise exception 'You can leave a review once the order is complete' using errcode = '23514'; end if;
+  if p_rating is null or p_rating not between 1 and 5 then raise exception 'Choose a rating from 1 to 5' using errcode = '22023'; end if;
+  if exists (select 1 from public.reviews where order_id = ord.id and reviewer_id = actor) then
+    raise exception 'You have already reviewed this order' using errcode = '23505';
+  end if;
+  insert into public.reviews (order_id, reviewer_id, reviewee_id, rating, comment)
+    values (ord.id, actor, case when actor = ord.buyer_id then ord.seller_id else ord.buyer_id end, p_rating, left(btrim(coalesce(p_comment, '')), 500))
+    returning * into made;
+  return to_jsonb(made);
+end;
+$$;
+revoke all on function public.leave_review(uuid, integer, text) from public, anon, authenticated;
+grant execute on function public.leave_review(uuid, integer, text) to authenticated;
+
 commit;

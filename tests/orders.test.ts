@@ -316,6 +316,31 @@ test('orders hold funds until delivery checks pass', async t => {
       await assert.rejects(db.query("select public.order_clawback('start',$1)", [order.id]), /permission denied/);
     });
 
+    await t.test('reviews: one each way, only after completion, readable by everyone', async () => {
+      const review = async (who: string, id: string, rating: number, comment = '') => {
+        await as(who);
+        return (await db.query<{ r: any }>('select public.leave_review($1,$2,$3) as r', [id, rating, comment])).rows[0].r;
+      };
+      listing = await newListing();
+      order = await paidOrder(listing);
+      await assert.rejects(review(buyer, order.id, 5), /once the order is complete/);
+      await act(seller, 'dispatch', { order: order.id, text: 'Royal Mail RM123456789GB' });
+      await act(buyer, 'accept', { order: order.id });
+      await assert.rejects(review(other, order.id, 5), /Order unavailable/);
+      await assert.rejects(review(buyer, order.id, 6), /rating from 1 to 5/);
+      const made = await review(buyer, order.id, 5, '  Exactly as described  ');
+      assert.deepEqual([made.reviewer_id, made.reviewee_id, made.rating, made.comment], [buyer, seller, 5, 'Exactly as described']);
+      await assert.rejects(review(buyer, order.id, 1), /already reviewed/);
+      assert.equal((await review(seller, order.id, 4)).reviewee_id, buyer);
+      await as(buyer);
+      await assert.rejects(db.query("insert into public.reviews(order_id,reviewer_id,reviewee_id,rating) values($1,$2,$3,5)", [order.id, other, seller]), /permission denied/);
+      await assert.rejects(db.query('update public.reviews set rating=1'), /permission denied/);
+      await db.exec('reset role; set role anon');
+      const seen = await db.query<{ rating: number; comment: string }>('select rating,comment from public.reviews where reviewee_id=$1', [seller]);
+      assert.deepEqual(seen.rows, [{ rating: 5, comment: 'Exactly as described' }]);
+      await assert.rejects(db.query('select reviewer_id from public.reviews'), /permission denied/);
+    });
+
     await t.test('the retired simulation is gone and the private schema is closed to clients', async () => {
       const left = await admin("select to_regclass('public.test_orders') as a, to_regclass('public.test_listings') as b, to_regclass('private.test_checkout_settings') as c, to_regproc('public.test_checkout') as d");
       assert.deepEqual(left.rows[0], { a: null, b: null, c: null, d: null });

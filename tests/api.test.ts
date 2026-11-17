@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createApp } from '../server/app';
 import { readConfig } from '../server/config';
 import { listingInput } from '../shared/listings';
+import { searchFilters } from '../server/search';
 
 test('configuration never exposes privileged keys', () => {
   assert.throws(() => readConfig({ SUPABASE_URL: 'https://test.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_secret_not_public' }), /publishable/);
@@ -96,4 +97,13 @@ test('HTTP authentication and validation stop unauthorized writes before the dat
     });
     assert.equal(databaseCalls, 0);
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+test('search matches every word across name, brand and description, with user text kept literal', () => {
+  assert.deepEqual(searchFilters('Ping  driver'), ['name.ilike."%Ping%",brand.ilike."%Ping%",description.ilike."%Ping%"', 'name.ilike."%driver%",brand.ilike."%driver%",description.ilike."%driver%"']);
+  assert.deepEqual(searchFilters(''), []);
+  // LIKE wildcards, quotes, commas and brackets cannot change the filter.
+  assert.deepEqual(searchFilters('50%_off', ['name']), ['name.ilike."%50\\\\%\\\\_off%"']);
+  assert.deepEqual(searchFilters('a",status.eq.archived)'), ['name.ilike."%a\\",status.eq.archived)%",brand.ilike."%a\\",status.eq.archived)%",description.ilike."%a\\",status.eq.archived)%"']);
+  assert.deepEqual(searchFilters('back\\slash', ['name']), ['name.ilike."%back\\\\\\\\slash%"']);
+  assert.equal(searchFilters('one two three four five six seven eight').length, 6);
 });

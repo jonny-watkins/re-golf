@@ -10,6 +10,7 @@ import { socialRoutes, SocialError } from './social.js';
 import { orderRoutes, paymentWebhook, settleOrders } from './orders.js';
 import { stripePayments, type Payments } from './payments.js';
 import { adminRoutes } from './admin.js';
+import { searchFilters } from './search.js';
 import { timingSafeEqual, createHash } from 'node:crypto';
 
 export type ClientFactory = (token?: string) => SupabaseClient;
@@ -142,7 +143,7 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     const { page, q, category } = paging.parse(req.query);
     let query = client().from('listings').select(await columns(), { count: 'exact' }).eq('status', 'active');
     if (category) query = query.eq('category', category);
-    if (q) query = query.ilike('name', `%${q.replace(/[\\%_]/g, '\\$&')}%`);
+    for (const filter of searchFilters(q)) query = query.or(filter);
     const { data, error, count } = await query.order('created_at', { ascending: false }).order('id').range((page - 1) * 24, page * 24 - 1);
     if (error) throw new HttpError(503, 'Listings could not be loaded. Check the database setup or try again.');
     res.json({ listings: data, total: count, page });
@@ -152,7 +153,7 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     const { page, q, category } = paging.parse(req.query);
     let query = db.from('listings').select(await columns(), { count: 'exact' }).eq('seller_id', user.id);
     if (category) query = query.eq('category', category);
-    if (q) query = query.ilike('name', `%${q.replace(/[\\%_]/g, '\\$&')}%`);
+    for (const filter of searchFilters(q)) query = query.or(filter);
     const { data, error, count } = await query.order('created_at', { ascending: false }).order('id').range((page - 1) * 24, page * 24 - 1);
     if (error) throw new HttpError(503, 'Your listings could not be loaded. Please try again.');
     res.json({ listings: data, total: count, page });
@@ -254,6 +255,15 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     if (result.error) throw new HttpError(503, 'Photo could not be loaded. Please try again.');
     res.type('image/webp').send(Buffer.from(await result.data.arrayBuffer()));
   });
+  // Public seller reputation. Empty until the reviews migration is applied.
+  app.get('/api/sellers/:id/rating', async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { data, error } = await client().from('reviews').select('rating,comment,created_at').eq('reviewee_id', id).order('created_at', { ascending: false }).limit(200);
+    if (error || !data) { res.json({ count: 0, average: null, recent: [] }); return; }
+    const count = data.length;
+    res.json({ count, average: count ? Math.round(data.reduce((sum, row) => sum + row.rating, 0) / count * 10) / 10 : null,
+      recent: data.filter(row => row.comment).slice(0, 5) });
+  });
   socialRoutes(app, authenticated, columns);
   if (payments && storageAdmin) orderRoutes(app, authenticated, storageAdmin, payments, config.origin);
   if (storageAdmin && config.adminEmails.length) adminRoutes(app, authenticated, storageAdmin, config.adminEmails, app.locals.settleOrders);
@@ -263,7 +273,7 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     if (error instanceof HttpError || error instanceof SocialError) { res.status(error.status).json({ error: error.message }); return; }
     if (error.type === 'entity.parse.failed') { res.status(400).json({ error: 'Invalid JSON.' }); return; }
     if (error.type === 'entity.too.large') { res.status(413).json({ error: 'Request is too large.' }); return; }
-    console.error('Request failed:', error instanceof Error ? error.name : 'Unknown error');
+    console.error('Request failed:', _req.method, _req.path, error instanceof Error ? (error.stack || error.message) : 'Unknown error');
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   };
   app.use(handleError);
