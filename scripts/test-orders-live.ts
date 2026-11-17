@@ -76,7 +76,7 @@ async function reserve(buyer: User, listing: string) {
 }
 
 try {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     const email = `orders-test-${randomUUID()}@example.com`, password = randomUUID() + 'Aa1!';
     const made = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: 'Order test ' + i } });
     assert.ok(!made.error, made.error?.message);
@@ -84,7 +84,7 @@ try {
     assert.ok(!login.error, login.error?.message);
     users.push({ id: made.data.user!.id, token: login.data.session!.access_token, email });
   }
-  const [seller, alice, bob, boss] = users;
+  const [seller, alice, bob, boss, carol] = users;
   let listing = await newListing(seller);
   let order: { id: string; total_pence: number };
 
@@ -340,23 +340,27 @@ try {
     });
 
     await check('a member can delete their account once no order is in progress; sign-in then fails', async () => {
-      // Bob has no order in progress; Alice does.
+      // Carol sells one club and has saved another; Alice has an order in progress.
+      const carols = (await api(carol, '/api/listings', { name: 'TEST carol club', brand: 'Automated', category: 'Putters', condition: 'Good', price_pence: 1000, location: 'Test' })).data.listing.id;
+      listings.push(carols);
       const open = await newListing(seller, 1400);
+      assert.equal((await api(carol, `/api/me/favourites/${open}`, {}, 'PUT')).status, 200);
       const inProgress = await reserve(alice, open);
       assert.equal((await api(alice, '/api/me/delete', { confirm: 'DELETE' })).status, 409);
       await api(alice, `/api/orders/${inProgress.id}/cancel`, {});
-      assert.equal((await api(bob, '/api/me/delete', { confirm: 'yes' })).status, 400);
+      assert.equal((await api(carol, '/api/me/delete', { confirm: 'yes' })).status, 400);
       assert.equal((await api(null, '/api/me/delete', { confirm: 'DELETE' })).status, 401);
-      const closed = await api(bob, '/api/me/delete', { confirm: 'DELETE' });
+      const closed = await api(carol, '/api/me/delete', { confirm: 'DELETE' });
       assert.equal(closed.status, 200, JSON.stringify(closed.data));
-      const profile = (await admin.from('profiles').select('display_name,deleted_at').eq('id', bob.id).single()).data!;
+      const profile = (await admin.from('profiles').select('display_name,deleted_at').eq('id', carol.id).single()).data!;
       assert.ok(profile.display_name === 'Deleted member' && profile.deleted_at);
-      const identity = (await admin.auth.admin.getUserById(bob.id)).data.user!;
-      assert.equal(identity.email, `deleted-${bob.id}@deleted.invalid`);
-      const login = await createClient(config.supabaseUrl, config.publishableKey, options).auth.signInWithPassword({ email: bob.email, password: 'whatever-Aa1!' });
-      assert.ok(login.error, 'the old email can no longer sign in');
-      // Bob's earlier completed-order records are still there for the seller.
-      assert.ok((await admin.from('orders').select('id', { count: 'exact', head: true }).eq('buyer_id', bob.id)).count! > 0);
+      assert.equal(await listingStatus(carols), 'archived');
+      assert.equal((await admin.from('favourites').select('listing_id', { count: 'exact', head: true }).eq('user_id', carol.id)).count, 0);
+      const identity = (await admin.auth.admin.getUserById(carol.id)).data.user!;
+      assert.equal(identity.email, `deleted-${carol.id}@deleted.invalid`);
+      // The old session and the old email are both useless now.
+      assert.notEqual((await api(carol, '/api/listings', { name: 'TEST after deletion', brand: 'Automated', category: 'Putters', condition: 'Good', price_pence: 1000, location: 'Test' })).status, 201);
+      assert.ok((identity as any).banned_until && Date.parse((identity as any).banned_until) > Date.now() + 365 * 86_400_000, 'sign-in is blocked for good');
       assert.equal((await api(alice, '/api/orders')).status, 200);
     });
   }

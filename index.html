@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#183c2d">
   <meta name="description" content="Buy and sell pre-loved golf clubs. Your payment is held until the club arrives and you have checked it.">
+  <link rel="icon" type="image/svg+xml" href="/relofted-icon.svg">
+  <link rel="apple-touch-icon" href="/relofted-icon.png">
   <title>Relofted — Better clubs, back in play</title>
   <style>
     :root {
@@ -34,6 +36,9 @@
     .top-note strong { color: var(--lime); font-weight: 700; }
     header { background: var(--paper); border-bottom: 1px solid rgba(24, 60, 45, .08); }
     .nav { min-height: 76px; display: flex; align-items: center; gap: 34px; }
+    .brand-logo { height: 54px; width: auto; display: block; }
+    footer .brand-logo { height: 44px; }
+    @media (max-width: 640px) { .brand-logo { height: 44px; } }
     .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 850; font-size: 1.35rem; letter-spacing: -.055em; white-space: nowrap; }
     .brand-mark { width: 35px; height: 35px; display: grid; place-items: center; color: var(--lime); background: var(--forest); border-radius: 12px 12px 12px 4px; }
     .brand-mark svg { width: 21px; height: 21px; }
@@ -277,12 +282,7 @@
   <div class="top-note"><strong>Golf gear, back in play.</strong> A marketplace made for the next round.</div>
   <header>
     <nav class="nav wrap" aria-label="Main navigation">
-      <a class="brand" href="#" aria-label="Relofted home">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M7 19 14.8 5m0 0 2.2 1.2M14.8 5l-2.2-1.2M7 19c-.8 1.4-2.1 2.1-3.6 1.6-1.1-.4-1.5-1.4-1.1-2.4.4-1.1 1.8-1.8 3.6-1.5l2.2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.5" cy="18.5" r="2" fill="#d7ed9b"/></svg>
-        </span>
-        Relofted
-      </a>
+      <a class="brand" href="#" aria-label="Relofted home"><img class="brand-logo" src="/relofted-logo.svg" alt="Relofted" width="333" height="129"></a>
       <div class="nav-links">
         <a href="#market">Browse clubs</a>
         <a href="#verification">How buying works</a>
@@ -378,7 +378,7 @@
 
   <footer>
     <div class="wrap footer-row">
-      <a class="brand" href="#" aria-label="Relofted home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 19 14.8 5m0 0 2.2 1.2M14.8 5l-2.2-1.2M7 19c-.8 1.4-2.1 2.1-3.6 1.6-1.1-.4-1.5-1.4-1.1-2.4.4-1.1 1.8-1.8 3.6-1.5l2.2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.5" cy="18.5" r="2" fill="#d7ed9b"/></svg></span>Relofted</a>
+      <a class="brand" href="#" aria-label="Relofted home"><img class="brand-logo" src="/relofted-logo.svg" alt="Relofted" width="333" height="129"></a>
       <div class="footer-note">Relofted development preview. Payments run in test mode: no real money moves. Example listings are labelled and kept separate from seller listings.</div>
     </div>
   </footer>
