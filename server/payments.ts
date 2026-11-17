@@ -16,7 +16,7 @@ export type PaymentEvent = { id: string } & (
 
 /** Everything the app needs from a payment provider. Tests supply a fake. */
 export type Payments = {
-  createCheckout(order: OrderRow, origin: string): Promise<{ id: string; url: string }>;
+  createCheckout(order: OrderRow, origin: string, buyerEmail?: string): Promise<{ id: string; url: string }>;
   expireCheckout(checkoutRef: string): Promise<void>;
   /** Throws when the signature does not match. */
   parseEvent(rawBody: Buffer, signature: string): PaymentEvent;
@@ -42,9 +42,13 @@ export function stripePayments(secretKey: string, ...webhookSecrets: string[]): 
   const stripe = new Stripe(secretKey);
   const line = (name: string, amount: number) => ({ quantity: 1, price_data: { currency: 'gbp', unit_amount: amount, product_data: { name } } });
   return {
-    async createCheckout(order, origin) {
+    async createCheckout(order, origin, buyerEmail) {
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
+        // Cards only (Apple Pay and Google Pay ride on cards). Pay-later methods such as Klarna settle
+        // and dispute differently, which does not suit money held for a seller.
+        allowed_payment_method_types: ['card'],
+        customer_email: buyerEmail,
         client_reference_id: order.id,
         metadata: { order_id: order.id },
         payment_intent_data: { transfer_group: order.id, metadata: { order_id: order.id } },
@@ -57,7 +61,7 @@ export function stripePayments(secretKey: string, ...webhookSecrets: string[]): 
         expires_at: Math.floor(Date.parse(order.created_at) / 1000) + 31 * 60,
         success_url: `${origin}/?order=${order.id}`,
         cancel_url: `${origin}/?order=${order.id}&cancelled=1`,
-      }, { idempotencyKey: `checkout-${order.id}` });
+      }, { idempotencyKey: `checkout-v2-${order.id}` });
       if (!session.url) throw new Error('Stripe returned no checkout URL');
       return { id: session.id, url: session.url };
     },

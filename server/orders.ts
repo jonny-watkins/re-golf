@@ -105,8 +105,8 @@ export async function settleOrders(admin: SupabaseClient, payments: Payments) {
 
 export function orderRoutes(app: Express, authenticate: Authenticate, admin: SupabaseClient, payments: Payments, origin: string) {
   const empty = z.object({}).strict();
-  async function startPayment(order: OrderRow) {
-    const checkout = await payments.createCheckout(order, origin);
+  async function startPayment(order: OrderRow, buyerEmail?: string) {
+    const checkout = await payments.createCheckout(order, origin, buyerEmail);
     if (order.checkout_ref !== checkout.id) must(await admin.from('orders').update({ checkout_ref: checkout.id }).eq('id', order.id), 'Checkout reference');
     return checkout.url;
   }
@@ -124,13 +124,13 @@ export function orderRoutes(app: Express, authenticate: Authenticate, admin: Sup
     res.json({ quote: check(await db.rpc('order_action', { p_action: 'quote', p_listing: listing_id })) });
   });
   app.post('/api/orders', async (req, res) => {
-    const { db } = await authenticate(req);
+    const { db, user } = await authenticate(req);
     const { listing_id, request_id } = z.object({ listing_id: z.uuid(), request_id: z.uuid() }).strict().parse(req.body);
     const order = check(await db.rpc('order_action', { p_action: 'reserve', p_listing: listing_id, p_request: request_id })) as OrderRow;
     // A repeated request for an order that has moved on returns it without a new payment page.
     if (order.status !== 'awaiting_payment') { res.json({ order }); return; }
     let url: string;
-    try { url = await startPayment(order); }
+    try { url = await startPayment(order, user.email); }
     catch (error) {
       console.error('Checkout could not be started for order', order.id, error instanceof Error ? error.message : '');
       await db.rpc('order_action', { p_action: 'cancel', p_order: order.id });
@@ -144,7 +144,7 @@ export function orderRoutes(app: Express, authenticate: Authenticate, admin: Sup
     const order = check(await db.from('orders').select('*').eq('id', id).eq('buyer_id', user.id).maybeSingle()) as OrderRow | null;
     if (!order) throw new SocialError(404, 'Order not found.');
     if (order.status !== 'awaiting_payment' || Date.parse(order.expires_at) <= Date.now()) throw new SocialError(409, 'This checkout has expired. Start again from the listing.');
-    res.json({ checkout_url: await startPayment(order) });
+    res.json({ checkout_url: await startPayment(order, user.email) });
   });
   app.post('/api/orders/:id/:action', async (req, res) => {
     const { db } = await authenticate(req);
