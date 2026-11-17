@@ -1,7 +1,7 @@
 type Order = { id: string; title: string; buyer_id: string; seller_id: string; total_pence: number; item_pence: number; delivery_pence: number;
   status: string; funds: string; issue: string | null; tracking: string | null; created_at: string; updated_at: string };
 type Report = { id: string; conversation_id: string; reporter_id: string; reason: string; details: string; status: string; created_at: string };
-type Overview = { orders: Order[]; reports: Report[]; profiles: { id: string; display_name: string }[]; settings: { checkout_enabled: boolean } | null };
+type Overview = { orders: Order[]; reports: Report[]; profiles: { id: string; display_name: string; suspended_at?: string | null; deleted_at?: string | null }[]; settings: { checkout_enabled: boolean } | null };
 type Detail = { order: Record<string, unknown>; events: { action: string; actor_id: string | null; status: string; funds: string; note: string | null; created_at: string }[];
   address: { name: string; line1: string; line2: string | null; city: string; postcode: string } | null; messages: { sender_id: string; body: string; created_at: string }[] };
 type Api = <T>(path: string, options?: RequestInit) => Promise<T>;
@@ -15,6 +15,7 @@ export function setupAdmin(api: Api, user: () => string | undefined) {
   const when = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
   let admin = false, busy = false, generation = 0;
   let names = new Map<string, string>();
+  let suspended = new Set<string>();
   const name = (id: string | null) => id ? `${names.get(id) || 'Member'} (${id.slice(0, 8)})` : 'Relofted system';
 
   function add<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tag: K, text = '', className = '') {
@@ -52,6 +53,17 @@ export function setupAdmin(api: Api, user: () => string | undefined) {
     const box = add(row, 'div', '', 'support-detail');
     add(box, 'p', `Order ${order.id}`);
     if (data.address) add(box, 'p', `Deliver to: ${[data.address.name, data.address.line1, data.address.line2, data.address.city, data.address.postcode].filter(Boolean).join(', ')}`);
+    const members = add(box, 'div', '', 'order-actions');
+    for (const [role, id] of [['buyer', order.buyer_id], ['seller', order.seller_id]] as const) {
+      const isSuspended = suspended.has(id);
+      button(members, `${isSuspended ? 'Restore' : 'Suspend'} ${role}`, async () => {
+        const note = reason(isSuspended ? `Let the ${role} use Relofted again?` : `Suspend the ${role}? They will not be able to list, buy or message, and their listings come off sale. Orders already under way continue.`);
+        if (!note) return;
+        await post(`/api/admin/users/${id}/suspend`, { suspended: !isSuspended, note });
+        status(isSuspended ? 'Member restored.' : 'Member suspended.');
+        await load();
+      });
+    }
     add(box, 'h5', 'History');
     for (const event of data.events) add(box, 'p', `${when(event.created_at)} — ${event.action} by ${name(event.actor_id)} → ${event.status}, money ${event.funds}${event.note ? ` — ${event.note}` : ''}`);
     add(box, 'h5', 'Messages between buyer and seller');
@@ -82,7 +94,8 @@ export function setupAdmin(api: Api, user: () => string | undefined) {
     const gen = generation;
     const data = await api<Overview>('/api/admin/overview');
     if (gen !== generation) return;
-    names = new Map(data.profiles.map(profile => [profile.id, profile.display_name]));
+    names = new Map(data.profiles.map(profile => [profile.id, profile.display_name + (profile.deleted_at ? ' — deleted' : profile.suspended_at ? ' — SUSPENDED' : '')]));
+    suspended = new Set(data.profiles.filter(profile => profile.suspended_at).map(profile => profile.id));
     const attention = el('support-attention'), all = el('support-orders'), reports = el('support-reports'), checkout = el('support-checkout');
     for (const node of [attention, all, reports, checkout]) node.replaceChildren();
     if (data.settings) {

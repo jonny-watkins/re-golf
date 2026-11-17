@@ -27,6 +27,8 @@ export type Payments = {
   onboardingLink(account: string, origin: string): Promise<string>;
   /** Takes a seller's payout back in full (after a bank dispute or a support refund). */
   reverseTransfer(order: OrderRow): Promise<string>;
+  /** Closes a seller's payout account when they delete their Relofted account. */
+  closeSellerAccount(account: string): Promise<void>;
   /** Asks the provider directly whether the seller can receive transfers yet. */
   accountReady(account: string): Promise<boolean>;
 };
@@ -147,6 +149,7 @@ export function stripePayments(secretKey: string, ...webhookSecrets: string[]): 
         account_onboarding: { refresh_url: `${origin}/?payouts=retry`, return_url: `${origin}/?payouts=done` } } });
       return link.url;
     },
+    async closeSellerAccount(account) { await stripe.v2.core.accounts.close(account, { applied_configurations: ['recipient'] }); },
     async accountReady(account) {
       const found = await stripe.v2.core.accounts.retrieve(account, { include: ['configuration.recipient'] });
       return found.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status === 'active';

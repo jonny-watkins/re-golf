@@ -38,6 +38,14 @@ if (settle) {
   setInterval(run, 5 * 60_000).unref();
 }
 
+// Queued emails go out once a minute. Nothing is sent until an email provider is configured.
+const sendEmails = app.locals.sendEmails as undefined | (() => Promise<{ sent: number; dropped: number; failed: number }>);
+if (sendEmails) {
+  setInterval(() => void sendEmails().then(result => {
+    if (result.sent || result.failed) console.log('Emails:', JSON.stringify(result));
+  }).catch(error => console.error('Email run failed:', error instanceof Error ? error.message : 'Unknown error')), 60_000).unref();
+}
+
 function shutdown() {
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 10_000).unref();

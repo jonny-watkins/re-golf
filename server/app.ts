@@ -11,10 +11,12 @@ import { orderRoutes, paymentWebhook, settleOrders } from './orders.js';
 import { stripePayments, type Payments } from './payments.js';
 import { adminRoutes } from './admin.js';
 import { searchFilters } from './search.js';
+import { accountRoutes } from './account.js';
+import { resendSender, sendPendingEmails, type EmailSender } from './email.js';
 import { timingSafeEqual, createHash } from 'node:crypto';
 
 export type ClientFactory = (token?: string) => SupabaseClient;
-export function createApp(config: AppConfig, clientOverride?: ClientFactory, storageOverride?: SupabaseClient, paymentsOverride?: Payments) {
+export function createApp(config: AppConfig, clientOverride?: ClientFactory, storageOverride?: SupabaseClient, paymentsOverride?: Payments, emailOverride?: EmailSender) {
   const app = express();
   app.disable('x-powered-by');
   // Trust only the configured number of hops, never arbitrary forwarded headers.
@@ -266,6 +268,11 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
   });
   socialRoutes(app, authenticated, columns);
   if (payments && storageAdmin) orderRoutes(app, authenticated, storageAdmin, payments, config.origin);
+  if (storageAdmin) {
+    accountRoutes(app, authenticated, storageAdmin, payments);
+    const sender = emailOverride || (config.emailApiKey ? resendSender(config.emailApiKey, config.emailFrom) : null);
+    if (sender) app.locals.sendEmails = () => sendPendingEmails(storageAdmin, sender, config.origin);
+  }
   if (storageAdmin && config.adminEmails.length) adminRoutes(app, authenticated, storageAdmin, config.adminEmails, app.locals.settleOrders);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found.' }));
   const handleError: ErrorRequestHandler = (error, _req, res, _next) => {

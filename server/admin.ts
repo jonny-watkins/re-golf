@@ -44,7 +44,12 @@ export function adminRoutes(app: Express, authenticate: Authenticate, admin: Sup
     const reports = must(await admin.from('conversation_reports').select('id,conversation_id,reporter_id,reason,details,status,created_at')
       .neq('status', 'resolved').order('created_at').limit(100), 'Reports') as { reporter_id: string }[];
     const ids = [...new Set([...orders.flatMap(order => [order.buyer_id, order.seller_id]), ...reports.map(report => report.reporter_id)])];
-    const profiles = ids.length ? must(await admin.from('profiles').select('id,display_name').in('id', ids), 'Profiles') : [];
+    // suspended_at arrives with a later migration; fall back to names only until then.
+    let profiles: unknown[] = [];
+    if (ids.length) {
+      const full = await admin.from('profiles').select('id,display_name,suspended_at,deleted_at').in('id', ids);
+      profiles = full.error ? must(await admin.from('profiles').select('id,display_name').in('id', ids), 'Profiles') || [] : full.data;
+    }
     const settings = await admin.rpc('marketplace_settings');
     if (settings.error && !missing(settings.error)) throw new Error('Settings failed');
     res.json({ orders, reports, profiles, settings: settings.error ? null : settings.data });
@@ -106,6 +111,20 @@ export function adminRoutes(app: Express, authenticate: Authenticate, admin: Sup
     const updated = must(await admin.from('listings').update({ status: 'archived' }).eq('id', id).eq('status', 'active').select('id'), 'Listing') as unknown[];
     if (!updated.length) throw new SocialError(404, 'No listing on sale with that ID.');
     await record(user, 'listing_takedown', id, input.note);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/admin/users/:id/suspend', async (req, res) => {
+    const user = await adminOnly(req);
+    const id = z.uuid().parse(req.params.id);
+    const input = note.extend({ suspended: z.boolean() }).strict().parse(req.body);
+    if (id === user.id) throw new SocialError(409, 'You cannot suspend your own account.');
+    const updated = await admin.from('profiles').update({ suspended_at: input.suspended ? new Date().toISOString() : null }).eq('id', id).select('id');
+    if (missing(updated.error) || updated.error?.code === 'PGRST204') throw new SocialError(409, 'Suspension needs the latest database update. Apply the pending migration first.');
+    if (!(must(updated, 'Suspension') || []).length) throw new SocialError(404, 'Member not found.');
+    // Their listings come off sale. Orders already under way continue so no buyer is stranded.
+    if (input.suspended) must(await admin.from('listings').update({ status: 'archived' }).eq('seller_id', id).eq('status', 'active').select('id'), 'Listings');
+    await record(user, input.suspended ? 'user_suspended' : 'user_restored', id, input.note);
     res.json({ ok: true });
   });
 

@@ -420,6 +420,16 @@ authForm.addEventListener('submit', async event => {
   } catch (error) { message('auth-message', errorMessage(error)); }
   finally { button.disabled = false; el<HTMLInputElement>('auth-password').value = ''; }
 });
+el('delete-account').addEventListener('click', async () => {
+  const typed = window.prompt('Deleting your account removes your profile, listings and saved clubs, and you will not be able to sign in again. Records of completed orders are kept as required by law.\n\nType DELETE to confirm.');
+  if (typed !== 'DELETE') { if (typed !== null) message('auth-message', 'Your account was not deleted. Type DELETE exactly to confirm.'); return; }
+  try {
+    await api('/api/me/delete', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE' }) });
+    await auth?.auth.signOut({ scope: 'local' });
+    authDialog.close();
+    message('market-message', 'Your account has been deleted.');
+  } catch (error) { message('auth-message', errorMessage(error)); }
+});
 el('sign-out').addEventListener('click', async () => {
   if (!auth) return;
   const { error } = await auth.auth.signOut({ scope: 'local' });

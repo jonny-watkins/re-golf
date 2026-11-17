@@ -27,6 +27,10 @@ services:
         sync: false
       - key: ADMIN_EMAILS
         sync: false
+      - key: EMAIL_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
       - key: PREVIEW_ACCESS_PASSWORD
         generateValue: true
 # APP_ORIGIN defaults to Render's assigned HTTPS URL. For a custom domain,

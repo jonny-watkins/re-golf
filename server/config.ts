@@ -11,6 +11,8 @@ export type AppConfig = {
   stripeWebhookSecret: string;
   stripeConnectWebhookSecret: string;
   adminEmails: string[];
+  emailApiKey: string;
+  emailFrom: string;
 };
 
 export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
@@ -69,5 +71,11 @@ export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
   const adminEmails = (env.ADMIN_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
   if (adminEmails.some(value => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value))) throw new Error('ADMIN_EMAILS must be a comma-separated list of email addresses.');
   if (adminEmails.length && !storageSecret) throw new Error('ADMIN_EMAILS requires SUPABASE_STORAGE_SECRET (the server-only sb_secret_ key).');
-  return { supabaseUrl, publishableKey, storageSecret, origin: url.origin, port, host, trustProxyHops, previewPassword, stripeSecretKey, stripeWebhookSecret, stripeConnectWebhookSecret, adminEmails };
+  // Transactional email. Both are set once the sending domain is verified with the email provider.
+  const emailApiKey = env.EMAIL_API_KEY?.trim() || '';
+  const emailFrom = env.EMAIL_FROM?.trim() || '';
+  if (Boolean(emailApiKey) !== Boolean(emailFrom)) throw new Error('Set both EMAIL_API_KEY and EMAIL_FROM, or neither.');
+  if (emailFrom && !/^[^<>]*<[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+>$|^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$/.test(emailFrom)) throw new Error('EMAIL_FROM must look like "Relofted <orders@example.co.uk>".');
+  if (emailApiKey && !storageSecret) throw new Error('Email requires SUPABASE_STORAGE_SECRET (the server-only sb_secret_ key).');
+  return { supabaseUrl, publishableKey, storageSecret, origin: url.origin, port, host, trustProxyHops, previewPassword, stripeSecretKey, stripeWebhookSecret, stripeConnectWebhookSecret, adminEmails, emailApiKey, emailFrom };
 }

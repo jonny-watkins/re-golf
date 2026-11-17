@@ -304,6 +304,62 @@ try {
     const pricing = (await api(null, '/api/config')).data.pricing;
     assert.deepEqual(pricing && [pricing.feeFixedPence, pricing.feeBps, pricing.deliveryPence, pricing.checkoutOpen], [70, 500, 595, true], 'fee settings reach the browser: ' + JSON.stringify(pricing));
   });
+  // The next checks need migration 20261117210000_accounts_and_emails.sql.
+  const accountsReady = !(await admin.from('profiles').select('suspended_at').limit(1)).error;
+  if (!accountsReady) console.log('SKIP suspension, account deletion and email queue: apply 20261117210000_accounts_and_emails.sql first');
+  else {
+    await check('emails are queued for each order step, to the right person', async () => {
+      const sold = await newListing(seller, 1100);
+      const made = await reserve(alice, sold);
+      await pay(made);
+      await api(seller, `/api/orders/${made.id}/dispatch`, { text: 'Royal Mail AB123456789GB' });
+      await api(alice, `/api/orders/${made.id}/confirm_delivery`, {});
+      await api(alice, `/api/orders/${made.id}/accept`, {});
+      const rows = (await admin.from('email_outbox').select('user_id,template,sent_at').eq('data->>order_id', made.id).order('id')).data!;
+      assert.deepEqual(rows.map(row => `${row.user_id === alice.id ? 'buyer' : 'seller'}:${row.template}`),
+        ['buyer:order_paid', 'seller:order_sold', 'buyer:order_posted', 'seller:order_delivered', 'seller:order_completed']);
+      assert.ok(rows.every(row => row.sent_at === null), 'nothing is sent until an email provider is configured');
+      assert.equal((await api(alice, '/api/orders')).status, 200);
+    });
+
+    await check('support can suspend a member: listings come off sale and they cannot list or be bought from', async () => {
+      const origin = 'http://127.0.0.1:' + (local!.address() as AddressInfo).port;
+      const support = async (user: User, path: string, body: unknown) => {
+        const response = await fetch(origin + path, { method: 'POST', headers: { Authorization: 'Bearer ' + user.token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        return { status: response.status, data: await response.json() as any };
+      };
+      const onSale = await newListing(seller, 1300);
+      assert.equal((await support(alice, `/api/admin/users/${seller.id}/suspend`, { suspended: true, note: 'not allowed' })).status, 404);
+      assert.equal((await support(boss, `/api/admin/users/${boss.id}/suspend`, { suspended: true, note: 'myself' })).status, 409);
+      assert.equal((await support(boss, `/api/admin/users/${seller.id}/suspend`, { suspended: true, note: 'Automated test: suspend' })).status, 200);
+      assert.equal(await listingStatus(onSale), 'archived');
+      const blocked = await api(seller, '/api/listings', { name: 'TEST while suspended', brand: 'Automated', category: 'Putters', condition: 'Good', price_pence: 1000, location: 'Test' });
+      assert.notEqual(blocked.status, 201, 'a suspended member cannot list');
+      assert.equal((await support(boss, `/api/admin/users/${seller.id}/suspend`, { suspended: false, note: 'Automated test: restore' })).status, 200);
+      listings.push((await api(seller, '/api/listings', { name: 'TEST after restore', brand: 'Automated', category: 'Putters', condition: 'Good', price_pence: 1000, location: 'Test' })).data.listing.id);
+    });
+
+    await check('a member can delete their account once no order is in progress; sign-in then fails', async () => {
+      // Bob has no order in progress; Alice does.
+      const open = await newListing(seller, 1400);
+      const inProgress = await reserve(alice, open);
+      assert.equal((await api(alice, '/api/me/delete', { confirm: 'DELETE' })).status, 409);
+      await api(alice, `/api/orders/${inProgress.id}/cancel`, {});
+      assert.equal((await api(bob, '/api/me/delete', { confirm: 'yes' })).status, 400);
+      assert.equal((await api(null, '/api/me/delete', { confirm: 'DELETE' })).status, 401);
+      const closed = await api(bob, '/api/me/delete', { confirm: 'DELETE' });
+      assert.equal(closed.status, 200, JSON.stringify(closed.data));
+      const profile = (await admin.from('profiles').select('display_name,deleted_at').eq('id', bob.id).single()).data!;
+      assert.ok(profile.display_name === 'Deleted member' && profile.deleted_at);
+      const identity = (await admin.auth.admin.getUserById(bob.id)).data.user!;
+      assert.equal(identity.email, `deleted-${bob.id}@deleted.invalid`);
+      const login = await createClient(config.supabaseUrl, config.publishableKey, options).auth.signInWithPassword({ email: bob.email, password: 'whatever-Aa1!' });
+      assert.ok(login.error, 'the old email can no longer sign in');
+      // Bob's earlier completed-order records are still there for the seller.
+      assert.ok((await admin.from('orders').select('id', { count: 'exact', head: true }).eq('buyer_id', bob.id)).count! > 0);
+      assert.equal((await api(alice, '/api/orders')).status, 200);
+    });
+  }
   console.log(`\nAll ${passed} hosted order checks passed.`);
 } finally {
   local?.close();
@@ -324,6 +380,7 @@ try {
     await admin.from('seller_accounts').delete().in('seller_id', ids);
     if (listings.length) await admin.from('listings').delete().in('id', listings);
     await admin.from('admin_actions').delete().in('admin_id', ids).then(() => {}, () => {});
+    await admin.from('email_outbox').delete().in('user_id', ids).then(() => {}, () => {});
     for (const id of ids) await admin.auth.admin.deleteUser(id);
     const left = await admin.from('listings').select('id', { count: 'exact', head: true }).in('seller_id', ids);
     console.log(`Cleanup: removed ${orderIds.length} test orders, ${listings.length} test listings, ${ids.length} test accounts${left.count ? ` (WARNING: ${left.count} listings remain)` : ''}.`);
