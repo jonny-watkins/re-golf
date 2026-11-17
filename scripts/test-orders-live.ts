@@ -65,6 +65,10 @@ async function pay(order: { id: string; total_pence: number }, eventId = 'evt_te
   assert.equal(response.status, 200);
   return { intent: intent.id, resend: send };
 }
+async function until(done: () => Promise<boolean>, tries = 20) {
+  for (let i = 0; i < tries; i++) { if (await done()) return; await new Promise(resolve => setTimeout(resolve, 2000)); }
+  throw new Error('Timed out waiting');
+}
 async function reserve(buyer: User, listing: string) {
   const made = await api(buyer, '/api/orders', { listing_id: listing, request_id: randomUUID() });
   assert.equal(made.status, 201, JSON.stringify(made.data));
@@ -161,6 +165,19 @@ try {
     assert.equal((await api(seller, '/api/orders')).data.addresses.length, 0, 'address hidden from seller after completion');
   });
 
+  await check('reviews: each side once, only after completion; seller rating is public', async () => {
+    assert.equal((await api(bob, `/api/orders/${order.id}/review`, { rating: 5 })).status, 404);
+    assert.equal((await api(alice, `/api/orders/${order.id}/review`, { rating: 9 })).status, 400);
+    const made = await api(alice, `/api/orders/${order.id}/review`, { rating: 5, comment: 'Automated test: exactly as described' });
+    assert.equal(made.status, 201, JSON.stringify(made.data));
+    assert.equal((await api(alice, `/api/orders/${order.id}/review`, { rating: 1 })).status, 409);
+    assert.equal((await api(seller, `/api/orders/${order.id}/review`, { rating: 4 })).status, 201);
+    const rating = await api(null, `/api/sellers/${seller.id}/rating`);
+    assert.deepEqual([rating.data.count, rating.data.average, rating.data.recent[0]?.comment], [1, 5, 'Automated test: exactly as described']);
+    const mine = await api(alice, '/api/orders');
+    assert.ok(mine.data.reviewsEnabled && mine.data.reviewed.includes(order.id));
+  });
+
   await check('payout waits for the seller to set up payouts; onboarding link is issued', async () => {
     const settled = await settleOrders(admin, payments);
     assert.ok(settled.awaiting_payout_setup >= 1 && settled.released === 0, JSON.stringify(settled));
@@ -251,9 +268,41 @@ try {
     assert.equal((await support(alice, `/api/admin/listings/${bad}/takedown`, { note: 'not allowed' })).status, 404);
     assert.equal((await support(boss, `/api/admin/listings/${bad}/takedown`, { note: 'Automated test: prohibited item' })).status, 200);
     assert.equal(await listingStatus(bad), 'archived');
-    const toggle = await support(boss, '/api/admin/checkout', { enabled: true, note: 'Automated test: no change' });
-    assert.ok([200, 409].includes(toggle.status), 'switch works, or reports that the database update is pending');
-    console.log('     checkout switch:', toggle.status === 200 ? 'available' : 'waiting for the pending database update');
+    // Checkout switch: off blocks new purchases only; back on restores them.
+    const off = await support(boss, '/api/admin/checkout', { enabled: false, note: 'Automated test: pause' });
+    assert.deepEqual([off.status, off.data.settings?.checkout_enabled], [200, false], JSON.stringify(off.data));
+    try { assert.equal((await api(alice, '/api/orders/quote', { listing_id: listing })).status, 503); }
+    finally { assert.equal((await support(boss, '/api/admin/checkout', { enabled: true, note: 'Automated test: resume' })).data.settings?.checkout_enabled, true); }
+
+    // Refund after the seller has been paid: the payout is taken back from the seller, then the buyer is refunded.
+    const sellerAccount = await stripe.v2.core.accounts.create({ contact_email: seller.email, display_name: 'API test seller', dashboard: 'none',
+      identity: { country: 'gb', entity_type: 'individual', individual: { given_name: 'Test', surname: 'Seller', email: seller.email, phone: '+447400123456', date_of_birth: { day: 1, month: 1, year: 1901 },
+        address: { line1: 'address_full_match', city: 'London', postal_code: 'SW1A 2AA', country: 'gb' } },
+        attestations: { terms_of_service: { account: { date: new Date().toISOString(), ip: '8.8.8.8' } } } },
+      configuration: { recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } } },
+      defaults: { currency: 'gbp', responsibilities: { fees_collector: 'application', losses_collector: 'application' } } });
+    const previous = (await admin.from('seller_accounts').select('provider_account').eq('seller_id', seller.id).single()).data!.provider_account;
+    await stripe.v2.core.accounts.close(previous, { applied_configurations: ['recipient'] }).catch(() => {});
+    await admin.from('seller_accounts').update({ provider_account: sellerAccount.id, payouts_enabled: true }).eq('seller_id', seller.id);
+    const sold = await newListing(seller, 3000);
+    order = await reserve(bob, sold);
+    const paidOut = await pay(order);
+    await api(seller, `/api/orders/${order.id}/dispatch`, { text: 'Parcelforce PF123456789GB' });
+    await api(bob, `/api/orders/${order.id}/accept`, {});
+    await until(async () => (await settleOrders(admin, payments), (await dbOrder(order.id)).funds === 'released'));
+    const transferRef = (await dbOrder(order.id)).transfer_ref;
+    assert.equal((await stripe.transfers.retrieve(transferRef)).amount, 3595);
+    const clawed = await support(boss, `/api/admin/orders/${order.id}/resolve`, { decision: 'refund', note: 'Automated test: refund after payout' });
+    assert.deepEqual([clawed.status, clawed.data.order?.status, clawed.data.order?.funds], [200, 'cancelled', 'refunded'], JSON.stringify(clawed.data));
+    const transfer = await stripe.transfers.retrieve(transferRef);
+    assert.deepEqual([transfer.amount_reversed, transfer.reversed], [3595, true]);
+    assert.deepEqual((await stripe.refunds.list({ payment_intent: paidOut.intent })).data.map(refund => refund.amount), [order.total_pence]);
+    const trail = (await admin.from('order_events').select('action').eq('order_id', order.id).order('id')).data!.map(event => event.action);
+    assert.deepEqual(trail.slice(-4), ['released', 'clawback_started', 'payout_reversed', 'refunded']);
+    const audit = (await admin.from('admin_actions').select('action').eq('admin_id', boss.id).order('id')).data!.map(row => row.action);
+    assert.deepEqual(audit, ['order_refund', 'listing_takedown', 'checkout_off', 'checkout_on', 'order_refund']);
+    const pricing = (await api(null, '/api/config')).data.pricing;
+    assert.deepEqual(pricing && [pricing.feeFixedPence, pricing.feeBps, pricing.deliveryPence, pricing.checkoutOpen], [70, 500, 595, true], 'fee settings reach the browser: ' + JSON.stringify(pricing));
   });
   console.log(`\nAll ${passed} hosted order checks passed.`);
 } finally {
@@ -267,7 +316,7 @@ try {
     }
     const orderIds = orders.map(order => order.id);
     if (orderIds.length) {
-      for (const table of ['order_events', 'payment_events', 'order_addresses']) await admin.from(table).delete().in('order_id', orderIds);
+      for (const table of ['reviews', 'order_events', 'payment_events', 'order_addresses']) await admin.from(table).delete().in('order_id', orderIds);
       await admin.from('orders').delete().in('id', orderIds);
     }
     const accounts = (await admin.from('seller_accounts').select('provider_account').in('seller_id', ids)).data || [];

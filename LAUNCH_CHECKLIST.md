@@ -26,7 +26,7 @@ What stands between this and a publishable app:
 - [x] [J] Simulation migration `20261117123645_test_checkout_orders.sql`: checked 17 Nov — it **is applied** to the development database (`test_listings` and `test_orders` exist, both empty). Harmless: the real order flow below does not depend on it or conflict with it. When the simulation is deleted, add a migration that drops those two tables, the two `test_checkout` functions and `private.test_checkout_settings`, and revokes `usage` on schema `private` from `authenticated`.
 - [x] [D] Simulation code deleted (17 Nov). Its database tables are dropped by the pending migration below.
 - [x] [D] Work committed and pushed to the `payments` branch; the preview deploys from that branch. `main` is untouched as the fallback.
-- [ ] [J] **Paste `supabase/migrations/20261117180000_support_and_clawback.sql` into the Supabase SQL Editor and run it once.** It switches on: reviews, the checkout on/off switch, fee-inclusive prices on listings, the support audit trail, payout clawback, and removes the old simulation tables. Everything else already works without it.
+- [x] [J] Migration `20261117180000_support_and_clawback.sql` applied to the development database (17 Nov). Verified on the preview: reviews, checkout switch, fee-inclusive pricing, audit trail, payout clawback; simulation tables removed.
 - [ ] [J] **Choose the support administrators:** set `ADMIN_EMAILS` on Render (and in local `.env`) to the sign-in email(s) allowed to open the Support screen, comma-separated. Until then the screen is off.
 - [ ] [J] Look over the `payments` branch and merge it into `main` when happy.
 
@@ -49,7 +49,7 @@ Still open:
 
 - [ ] [J] Is £5.95 right for golf clubs? A tracked parcel long enough for a driver usually costs more. Consider a price per category (clubs vs. bags vs. small items).
 - [ ] [J] Scope confirmation: UK only, GBP, individual sellers, one item per order. Professional verification deferred.
-- [x] [D] Listing cards and the listing page show the price including the buyer protection fee (appears once the pending migration is applied). [J] still to confirm the exact wording with the policy review in section 7.
+- [x] [D] Listing cards and the listing page show the price including the buyer protection fee. [J] still to confirm the exact wording with the policy review in section 7.
 
 ## 2. Order and escrow core [D]
 
@@ -88,7 +88,7 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [ ] [J] Click through Stripe's payout setup form once as a seller (Orders → Set up payouts). Stripe shows a CAPTCHA to scripts, so this one step was not automated; the payout itself was proven with a test seller set up through Stripe's API. Test values: phone "use test number", code 000000, date of birth 01/01/1901, address line `address_full_match`, sort code 108800, account 00012345.
 - [x] [D] Checkout limited to cards (Apple Pay and Google Pay included); Klarna and other pay-later methods are off. Buyer email is prefilled.
 - [ ] [D] Declined-card behaviour observed in the browser (abandonment and expiry are covered by the hosted checks).
-- [x] [D] Bank dispute or support refund after the seller has been paid: the transfer is taken back, then the buyer refunded if that was the decision. Database rules tested; **not yet run against Stripe** because it needs the pending migration.
+- [x] [D] Bank dispute or support refund after the seller has been paid: the transfer is taken back, then the buyer refunded if that was the decision. Proven against the Stripe sandbox (transfer fully reversed, buyer refunded in full). A real bank dispute event has not been simulated.
 - [x] [D] Reconciliation: `npm run orders:reconcile` compares Stripe charges, refunds and seller transfers with the orders table in both directions and exits non-zero on any difference. First run correctly flagged the £100 sample payment Stripe's own setup guide created (no order behind it); refund or ignore it.
 - [ ] [D] Schedule the reconciliation daily and alert on failure (needs the production host).
 - [ ] [D] The free Render service sleeps when idle, which delays webhooks and the 5-minute settlement. Acceptable for testing; production needs an always-on plan.
@@ -101,7 +101,7 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [x] Buyer can report a problem, which freezes payment.
 - [ ] Richer issue handling: photos, seller response, return postage, partial refunds.
 - [ ] Delete delivery addresses a set time after completion (retention).
-- [x] Reviews: buyer and seller can each leave one rating and comment after an order completes; the seller's average shows on their listings. Database rules tested; screens appear once the pending migration is applied.
+- [x] Reviews: buyer and seller can each leave one rating and comment after an order completes; the seller's average shows on their listings. Hosted check passed.
 
 ## 5. Notifications and email [D]/[J]
 
@@ -111,7 +111,7 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 
 ## 6. Admin and support [D]/[J]
 
-- [x] Support screen for administrators named in `ADMIN_EMAILS`: orders needing a decision (release to seller or refund buyer), order history with the buyer–seller messages, reports queue, take a listing off sale, pause all new purchases. Every action requires a reason and is audited. Non-administrators get a plain "not found". Hosted test passed (`npm run test:orders:live`, check 12).
+- [x] Support screen for administrators named in `ADMIN_EMAILS`: orders needing a decision (release to seller or refund buyer), order history with the buyer–seller messages, reports queue, take a listing off sale, pause all new purchases. Every action requires a reason and is audited. Non-administrators get a plain "not found". Hosted test passed (`npm run test:orders:live`, 13 checks).
 - [ ] User suspension (block an account from listing, buying and messaging).
 - [ ] [J] Named support owner, support mailbox, and a review cadence for reports.
 - [ ] Account deletion. Today it would fail or destroy records: conversations, messages and (now) orders reference the profile. Needs anonymise-and-retain for anything financial.
