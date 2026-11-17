@@ -1,5 +1,7 @@
 # Re Golf development and launch plan
 
+Development hosting decision — 17 November 2026: defer paid automatic cleanup until release readiness. Use `npm run photos:cleanup` manually during development. Hosted cleanup acceptance passed with disposable uploads: an aged unfinished upload was removed, a three-week-old completed photo and fresh unfinished upload were retained, existing ready-photo records were unchanged, and a repeat run was safe. The test simulates age by backdating only its own fixtures. A local regression test verifies failed Storage deletion retains the queue for a successful retry. No paid scheduler is provisioned; adding billing is not a development prerequisite. This decision supersedes earlier billing-next-step instructions. Repeat hosted acceptance with `TEST_PROJECT` set to the development project and `npx tsx scripts/test-cleanup-live.ts`.
+
 Updated: 17 November 2026
 
 Cleanup scheduling update: hourly Render configuration is prepared in `render-cleanup.yaml`; standalone cleanup configuration and all 46 tests/TypeScript pass. Render validation is blocked by `need_payment_info`. No paid job exists yet. The owner must add workspace payment details before deployment and first-run verification.

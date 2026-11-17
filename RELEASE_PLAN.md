@@ -1,5 +1,7 @@
 # Re Golf release plan
 
+Development hosting decision — 17 November 2026: defer paid automatic cleanup until release readiness. Use `npm run photos:cleanup` manually during development. Hosted cleanup acceptance passed with disposable uploads: an aged unfinished upload was removed, a three-week-old completed photo and fresh unfinished upload were retained, existing ready-photo records were unchanged, and a repeat run was safe. The test simulates age by backdating only its own fixtures. A local regression test verifies failed Storage deletion retains the queue for a successful retry. No paid scheduler is provisioned; adding billing is not a development prerequisite. This decision supersedes earlier billing-next-step instructions. Repeat hosted acceptance with `TEST_PROJECT` set to the development project and `npx tsx scripts/test-cleanup-live.ts`.
+
 Hourly cleanup preparation: configuration and regression checks are complete (46 tests and TypeScript pass). Render validation reports `need_payment_info`; scheduling and first hosted run remain blocked until workspace billing is configured. No paid cron resource has been created.
 
 Latest security update, 17 November: function-permission hardening is applied to the development database and verified with 44 local tests, TypeScript and fresh Render social/photo checks. Existing accounts and listings are preserved. This supersedes permission-hardening pending statements below. Hourly photo cleanup remains pending.
