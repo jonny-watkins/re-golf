@@ -84,7 +84,7 @@ test('photo download checks visibility before storage and sends uncached image b
     const publicPhoto = await fetch(url);
     assert.equal(publicPhoto.status, 200);
     assert.match(publicPhoto.headers.get('content-type') || '', /image\/webp/);
-    assert.equal(publicPhoto.headers.get('cache-control'), 'no-store');
+    assert.equal(publicPhoto.headers.get('cache-control'), 'private, max-age=86400');
     assert.deepEqual(Buffer.from(await publicPhoto.arrayBuffer()), image);
     archived = true;
     assert.equal((await fetch(url)).status, 404);

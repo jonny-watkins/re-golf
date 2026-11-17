@@ -60,7 +60,7 @@ try {
   const ids = await Promise.all(uploads.filter(r => r.status === 201).map(async r => (await r.json()).photo.id as string));
   stage = 'download and metadata';
   const downloaded = await request(`/api/photos/${ids[0]}`); assert.equal(downloaded.status, 200);
-  assert.equal(downloaded.headers.get('cache-control'), 'no-store');
+  assert.equal(downloaded.headers.get('cache-control'), 'private, max-age=86400');
   const metadata = await sharp(Buffer.from(await downloaded.arrayBuffer())).metadata();
   assert.equal(metadata.format, 'webp'); assert.equal(metadata.width, 800); assert.equal(metadata.height, 1600); assert.equal(metadata.exif, undefined);
   stage = 'direct client access denied';

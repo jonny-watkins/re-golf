@@ -95,6 +95,15 @@ try {
     assert.equal((await api(null, '/api/orders/quote', { listing_id: listing })).status, 401);
   });
 
+  await check('browse filters: condition and maximum price; search finds brand words', async () => {
+    const found = async (query: string) => (await api(null, '/api/listings?' + query)).data.listings.some((item: any) => item.id === listing);
+    assert.equal(await found('q=TEST%20ORDER&condition=Good&max_price=10'), true);
+    assert.equal(await found('q=TEST%20ORDER&max_price=9'), false);
+    assert.equal(await found('q=TEST%20ORDER&condition=New'), false);
+    assert.equal(await found('q=Automated%20buy'), true, 'words can match brand and name separately');
+    assert.equal((await api(null, '/api/listings?condition=Mint')).status, 400);
+  });
+
   await check('two simultaneous buyers: exactly one gets the item and a Stripe checkout', async () => {
     const [a, b] = await Promise.all([alice, bob].map(buyer => api(buyer, '/api/orders', { listing_id: listing, request_id: randomUUID() })));
     assert.deepEqual([a.status, b.status].sort(), [201, 409], JSON.stringify([a.data, b.data]));
@@ -114,6 +123,9 @@ try {
     assert.equal((await api(seller, '/api/orders')).data.orders.length, 1);
     assert.equal((await api(loser, '/api/orders')).data.orders.length, 0);
     assert.equal((await api(loser, `/api/orders/${order.id}/cancel`, {})).status, 404);
+    // Order photo: only the buyer and seller can ask; this test listing has no photo.
+    assert.equal((await api(loser, `/api/orders/${order.id}/photo`)).data.error, 'Order not found.');
+    assert.equal((await api(buyer, `/api/orders/${order.id}/photo`)).data.error, 'This item has no photo.');
     assert.equal((await api(seller, `/api/listings/${listing}`, { name: 'Changed', brand: 'Automated', category: 'Putters', condition: 'Good', price_pence: 100, location: 'Test' }, 'PUT')).status, 404);
     assert.notEqual((await api(seller, `/api/listings/${listing}/archive`, {})).status, 200);
     assert.equal(await listingStatus(listing), 'reserved');

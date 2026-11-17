@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient, type Session } from '@supabase/supabase-js';
-import { categories, maxPhotos, maxPhotoBytes, type ListingPhoto, type Listing, type ListingInput } from '../shared/listings';
+import { categories, conditions, maxPhotos, maxPhotoBytes, type ListingPhoto, type Listing, type ListingInput } from '../shared/listings';
 import { artSvg } from './art';
 import { sampleListings } from './samples';
 import { setupMessages } from './messages';
@@ -48,7 +48,24 @@ const authDialog = el<HTMLDialogElement>('auth-dialog');
 const sellForm = el<HTMLFormElement>('sell-form');
 const authForm = el<HTMLFormElement>('auth-form');
 const inbox = setupMessages(api, () => session?.user.id, () => openAuth());
-const orders = setupOrders(api, () => session?.user.id, () => openAuth());
+// Private images (order photos) need the sign-in token, so they are fetched and shown from memory.
+const privateImages = new Map<string, string>();
+async function privateImage(path: string) {
+  const cached = privateImages.get(path);
+  if (cached) return cached;
+  try {
+    const token = auth ? (await auth.auth.getSession()).data.session?.access_token : null;
+    if (!token) return null;
+    const response = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) return null;
+    const url = URL.createObjectURL(await response.blob());
+    privateImages.set(path, url);
+    return url;
+  } catch { return null; }
+}
+const orders = setupOrders(api, () => session?.user.id, () => openAuth(), privateImage);
+let activeCondition = '';
+let maxPrice = '';
 const support = setupAdmin(api, () => session?.user.id);
 // Buyer fee settings from the server, used to show the price a buyer will actually pay for the item.
 let pricing: { feeFixedPence: number; feeBps: number; deliveryPence: number } | null = null;
@@ -196,6 +213,8 @@ async function loadListings() {
   try {
     const params = new URLSearchParams({ page: String(page), q: query });
     if (activeCategory) params.set('category', activeCategory);
+    if (activeCondition) params.set('condition', activeCondition);
+    if (maxPrice) params.set('max_price', maxPrice);
     const data = await api<{ listings: Listing[]; total: number }>(`${savedOnly ? '/api/me/favourites' : view === 'mine' ? '/api/me/listings' : '/api/listings'}?${params}`);
     const favourites = session && data.listings.length ? await api<{ ids: string[] }>('/api/me/favourites/status', { method: 'POST', body: JSON.stringify({ ids: data.listings.map(item => item.id) }) }) : { ids: [] };
     if (request !== requestNumber) return;
@@ -321,6 +340,14 @@ for (const [id, mode] of [['browse-listings', 'browse'], ['my-listings', 'mine']
 el('search-form').addEventListener('submit', event => { event.preventDefault(); page = 1; void loadListings(); el('market').scrollIntoView({ behavior: 'smooth' }); });
 let searchTimer: ReturnType<typeof setTimeout>;
 el('search-input').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { page = 1; void loadListings(); }, 300); });
+el<HTMLSelectElement>('condition-filter').innerHTML = ['', ...conditions].map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value || 'Any condition')}</option>`).join('');
+el('condition-filter').addEventListener('change', event => { activeCondition = (event.target as HTMLSelectElement).value; page = 1; void loadListings(); });
+let priceTimer: ReturnType<typeof setTimeout>;
+el('max-price').addEventListener('input', event => {
+  const pounds = Math.floor(Number((event.target as HTMLInputElement).value));
+  clearTimeout(priceTimer);
+  priceTimer = setTimeout(() => { maxPrice = pounds >= 1 && pounds <= 20000 ? String(pounds) : ''; page = 1; void loadListings(); }, 400);
+});
 el('previous-page').addEventListener('click', () => { page--; void loadListings(); });
 el('next-page').addEventListener('click', () => { page++; void loadListings(); });
 el('saved-filter').addEventListener('click', () => { if (!session) { openAuth(); return; } savedOnly = !savedOnly; view = 'browse'; page = 1; void loadListings(); el('market').scrollIntoView({ behavior: 'smooth' }); });
@@ -455,7 +482,7 @@ async function initialise() {
       auth.auth.onAuthStateChange((event, value) => {
         const previousUser = session?.user.id;
         session = value;
-        if (previousUser !== value?.user.id) { saved.clear(); savedOnly = false; inbox.clear(); orders.clear(); support.clear(); setTimeout(() => void support.refresh(), 0); requestNumber++; setTimeout(() => void loadListings(), 0); }
+        if (previousUser !== value?.user.id) { saved.clear(); savedOnly = false; inbox.clear(); orders.clear(); support.clear(); privateImages.forEach(url => URL.revokeObjectURL(url)); privateImages.clear(); setTimeout(() => void support.refresh(), 0); requestNumber++; setTimeout(() => void loadListings(), 0); }
         el('account-button').textContent = value ? 'My account' : 'Sign in';
         // Supabase callbacks must not await another auth method while holding the auth lock.
         if (event === 'PASSWORD_RECOVERY') setTimeout(() => openAuth('update'), 0);

@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
@@ -106,4 +107,7 @@ test('search matches every word across name, brand and description, with user te
   assert.deepEqual(searchFilters('a",status.eq.archived)'), ['name.ilike."%a\\",status.eq.archived)%",brand.ilike."%a\\",status.eq.archived)%",description.ilike."%a\\",status.eq.archived)%"']);
   assert.deepEqual(searchFilters('back\\slash', ['name']), ['name.ilike."%back\\\\\\\\slash%"']);
   assert.equal(searchFilters('one two three four five six seven eight').length, 6);
+});
+test('the one-paste production database file matches the migrations', () => {
+  execFileSync(process.execPath, ['scripts/build-production-sql.mjs', '--check'], { stdio: 'pipe' });
 });

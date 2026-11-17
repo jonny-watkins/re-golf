@@ -134,6 +134,20 @@ export function orderRoutes(app: Express, authenticate: Authenticate, admin: Sup
     res.json({ orders, addresses, payouts: { started: Boolean(account), enabled: Boolean(account?.payouts_enabled) },
       reviewsEnabled, reviewed: reviewsEnabled ? reviewed.data!.map(row => row.order_id) : [] });
   });
+  // The item's main photo for an order. A sold listing is hidden from public browsing, so this
+  // checks the caller is the buyer or seller (row-level security) and then reads with the server key.
+  app.get('/api/orders/:id/photo', async (req, res) => {
+    const { db } = await authenticate(req);
+    const id = z.uuid().parse(req.params.id);
+    const order = check(await db.from('orders').select('listing_id').eq('id', id).maybeSingle()) as { listing_id: string } | null;
+    if (!order) throw new SocialError(404, 'Order not found.');
+    const photo = must(await admin.from('listing_photos').select('id').eq('listing_id', order.listing_id).eq('ready', true).order('position').limit(1).maybeSingle(), 'Photo lookup') as { id: string } | null;
+    if (!photo) throw new SocialError(404, 'This item has no photo.');
+    const file = await admin.storage.from('listing-photos').download(`${order.listing_id}/${photo.id}.webp`);
+    if (file.error) throw new SocialError(404, 'This item has no photo.');
+    res.set('Cache-Control', 'private, max-age=86400');
+    res.type('image/webp').send(Buffer.from(await file.data.arrayBuffer()));
+  });
   app.post('/api/orders/quote', async (req, res) => {
     const { db } = await authenticate(req);
     const { listing_id } = z.object({ listing_id: z.uuid() }).strict().parse(req.body);

@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { categories, listingColumns, listingInput, maxPhotoBytes } from '../shared/listings.js';
+import { categories, conditions, listingColumns, listingInput, maxPhotoBytes } from '../shared/listings.js';
 import { normalisePhoto } from './images.js';
 import type { AppConfig } from './config.js';
 import { socialRoutes, SocialError } from './social.js';
@@ -140,11 +140,15 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     page: z.coerce.number().int().min(1).max(10000).default(1),
     q: z.string().trim().max(100).default(''),
     category: z.enum(categories).optional(),
+    condition: z.enum(conditions).optional(),
+    max_price: z.coerce.number().int().min(1).max(20000).optional(), // whole pounds
   }).strict();
   app.get('/api/listings', async (req, res) => {
-    const { page, q, category } = paging.parse(req.query);
+    const { page, q, category, condition, max_price } = paging.parse(req.query);
     let query = client().from('listings').select(await columns(), { count: 'exact' }).eq('status', 'active');
     if (category) query = query.eq('category', category);
+    if (condition) query = query.eq('condition', condition);
+    if (max_price) query = query.lte('price_pence', max_price * 100);
     for (const filter of searchFilters(q)) query = query.or(filter);
     const { data, error, count } = await query.order('created_at', { ascending: false }).order('id').range((page - 1) * 24, page * 24 - 1);
     if (error) throw new HttpError(503, 'Listings could not be loaded. Check the database setup or try again.');
@@ -152,9 +156,11 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
   });
   app.get('/api/me/listings', async (req, res) => {
     const { db, user } = await authenticated(req);
-    const { page, q, category } = paging.parse(req.query);
+    const { page, q, category, condition, max_price } = paging.parse(req.query);
     let query = db.from('listings').select(await columns(), { count: 'exact' }).eq('seller_id', user.id);
     if (category) query = query.eq('category', category);
+    if (condition) query = query.eq('condition', condition);
+    if (max_price) query = query.lte('price_pence', max_price * 100);
     for (const filter of searchFilters(q)) query = query.or(filter);
     const { data, error, count } = await query.order('created_at', { ascending: false }).order('id').range((page - 1) * 24, page * 24 - 1);
     if (error) throw new HttpError(503, 'Your listings could not be loaded. Please try again.');
@@ -255,6 +261,7 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     if (!storageAdmin) throw new HttpError(503, 'Photo storage is not connected yet.');
     const result = await storageAdmin.storage.from('listing-photos').download(`${data.listing_id}/${data.id}.webp`);
     if (result.error) throw new HttpError(503, 'Photo could not be loaded. Please try again.');
+    res.set('Cache-Control', 'private, max-age=86400');
     res.type('image/webp').send(Buffer.from(await result.data.arrayBuffer()));
   });
   // Public seller reputation. Empty until the reviews migration is applied.

@@ -18,10 +18,13 @@ const conversationColumns = 'id,listing_id,buyer_id,seller_id,listing_title,crea
 export function socialRoutes(app: Express, authenticate: (req: Request) => Promise<{ db: SupabaseClient; user: User }>, listingColumns: () => Promise<string>) {
   app.get('/api/me/favourites', async (req, res) => {
     const { db, user } = await authenticate(req);
-    const input = z.object({ page: z.coerce.number().int().min(1).max(10000).default(1), q: z.string().trim().max(100).default(''), category: z.string().max(40).optional() }).strict().parse(req.query);
+    const input = z.object({ page: z.coerce.number().int().min(1).max(10000).default(1), q: z.string().trim().max(100).default(''), category: z.string().max(40).optional(),
+      condition: z.string().max(40).optional(), max_price: z.coerce.number().int().min(1).max(20000).optional() }).strict().parse(req.query);
     let query = db.from('favourites').select(`listing_id,created_at,listings!inner(${await listingColumns()})`, { count: 'exact' }).eq('user_id', user.id).eq('listings.status', 'active');
     for (const filter of searchFilters(input.q)) query = query.or(filter, { referencedTable: 'listings' });
     if (input.category) query = query.eq('listings.category', input.category);
+    if (input.condition) query = query.eq('listings.condition', input.condition);
+    if (input.max_price) query = query.lte('listings.price_pence', input.max_price * 100);
     const { data, error, count } = await query.order('created_at', { ascending: false }).order('listing_id').range((input.page - 1) * 24, input.page * 24 - 1);
     check(error); res.json({ listings: (data as unknown as { listings: unknown }[] | null)?.map(row => row.listings), total: count, page: input.page });
   });

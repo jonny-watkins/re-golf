@@ -172,6 +172,15 @@
     .price-incl { display: block; font-size: .72rem; font-weight: 600; letter-spacing: 0; color: #777f78; margin-top: 2px; }
     .support-detail { background: #f4f6f1; border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; font-size: .8rem; overflow-wrap: anywhere; }
     .support-detail h5 { margin: 6px 0 0; font-size: .8rem; }
+    .filter-extra { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0 4px; font-size: .84rem; font-weight: 600; color: #4a544d; }
+    .filter-extra label { display: inline-flex; align-items: center; gap: 8px; }
+    .filter-extra select, .filter-extra input { padding: 8px 10px; border: 1px solid #cfd6cc; border-radius: 10px; font: inherit; background: #fff; }
+    .filter-extra input { width: 96px; }
+    .order-photo { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; }
+    .order-photo[hidden] { display: none; }
+    @media (max-width: 600px) { .nav-actions { width: 100%; margin-left: 0; justify-content: flex-start; } .nav-actions > :last-child { margin-left: auto; } }
+    .footer-links { display: flex; gap: 18px; font-size: .86rem; }
+    .footer-links a { color: inherit; text-decoration: underline; }
     .order-row { border-top: 1px solid #edf0eb; padding: 14px 0; display: grid; gap: 6px; font-size: .88rem; }
     .order-row h4, .order-row p { margin: 0; }
     .order-amounts { color: #777f78; font-size: .8rem; }
@@ -367,6 +376,10 @@
       <div class="market-toolbar"><button id="browse-listings" class="button button-light" type="button">Browse listings</button><button id="my-listings" class="button button-outline" type="button">My listings</button><button id="example-listings" class="button button-outline" type="button">View examples</button></div>
       <p id="market-message" role="status"></p>
       <div class="filters" id="filters" aria-label="Filter clubs by category"></div>
+      <div class="filter-extra">
+        <label>Condition <select id="condition-filter"></select></label>
+        <label>Max price £ <input id="max-price" type="number" min="1" max="20000" step="1" inputmode="numeric" placeholder="Any"></label>
+      </div>
       <div class="listing-grid" id="listing-grid"></div>
       <div class="market-toolbar" id="pagination"><button id="previous-page" class="button button-outline" type="button">Previous</button><span id="page-label"></span><button id="next-page" class="button button-outline" type="button">Next</button></div>
       <div class="sell-cta">
@@ -379,7 +392,7 @@
   <footer>
     <div class="wrap footer-row">
       <a class="brand" href="#" aria-label="Relofted home"><img class="brand-logo" src="/relofted-logo.svg" alt="Relofted" width="333" height="129"></a>
-      <div class="footer-note">Relofted development preview. Payments run in test mode: no real money moves. Example listings are labelled and kept separate from seller listings.</div>
+      <nav class="footer-links" aria-label="Policies"><a href="/buyer-protection.html">How it works</a><a href="/terms.html">Terms</a><a href="/privacy.html">Privacy</a></nav><div class="footer-note">Relofted development preview. Payments run in test mode: no real money moves. Example listings are labelled and kept separate from seller listings.</div>
     </div>
   </footer>
 

@@ -8,7 +8,7 @@ type Address = { order_id: string; name: string; line1: string; line2: string | 
 type Quote = { title: string; item_pence: number; fee_pence: number; delivery_pence: number; total_pence: number; hold_hours: number };
 type Api = <T>(path: string, options?: RequestInit) => Promise<T>;
 
-export function setupOrders(api: Api, user: () => string | undefined, signIn: () => void) {
+export function setupOrders(api: Api, user: () => string | undefined, signIn: () => void, photoUrl: (path: string) => Promise<string | null>) {
   const el = (id: string) => document.getElementById(id)!;
   const dialog = el('orders-dialog') as HTMLDialogElement;
   const status = (text: string) => { el('orders-status').textContent = text; };
@@ -76,6 +76,9 @@ export function setupOrders(api: Api, user: () => string | undefined, signIn: ()
   function renderOrder(parent: HTMLElement, order: Order, address: Address | undefined, payoutsEnabled: boolean, canReview: boolean) {
     const buying = order.buyer_id === user();
     const row = add(parent, 'section', '', 'order-row');
+    const picture = add(row, 'img', '', 'order-photo');
+    picture.alt = ''; picture.hidden = true;
+    void photoUrl(`/api/orders/${order.id}/photo`).then(url => { if (url) { picture.src = url; picture.hidden = false; } });
     add(row, 'h4', order.title);
     add(row, 'p', describe(order, buying, payoutsEnabled));
     add(row, 'p', buying
