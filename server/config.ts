@@ -7,6 +7,10 @@ export type AppConfig = {
   host: string;
   trustProxyHops: number;
   previewPassword: string;
+  testCheckoutEnabled: boolean;
+  stripeSecretKey: string;
+  stripeWebhookSecret: string;
+  stripeConnectWebhookSecret: string;
 };
 
 export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
@@ -47,5 +51,21 @@ export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
   if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 5) {
     throw new Error('TRUST_PROXY_HOPS must be an integer from 0 to 5.');
   }
-  return { supabaseUrl, publishableKey, storageSecret, origin: url.origin, port, host, trustProxyHops, previewPassword };
+  // The simulated checkout is a development aid. It stays off unless explicitly enabled.
+  const testCheckoutEnabled = env.TEST_CHECKOUT_ENABLED === 'true';
+  const stripeSecretKey = env.STRIPE_SECRET_KEY?.trim() || '';
+  const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET?.trim() || '';
+  if (Boolean(stripeSecretKey) !== Boolean(stripeWebhookSecret)) throw new Error('Set both STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, or neither.');
+  // Stripe signs connected-account events (seller payout status) with a second destination's secret.
+  const stripeConnectWebhookSecret = env.STRIPE_CONNECT_WEBHOOK_SECRET?.trim() || '';
+  if (stripeConnectWebhookSecret && (!stripeSecretKey || !/^whsec_[A-Za-z0-9]+$/.test(stripeConnectWebhookSecret))) throw new Error('STRIPE_CONNECT_WEBHOOK_SECRET must be a whsec_ signing secret and requires the other Stripe settings.');
+  if (stripeSecretKey) {
+    if (!/^(sk|rk)_(test|live)_[A-Za-z0-9]+$/.test(stripeSecretKey)) throw new Error('STRIPE_SECRET_KEY must be a Stripe secret or restricted key. Keep it server-only.');
+    if (!/^whsec_[A-Za-z0-9]+$/.test(stripeWebhookSecret)) throw new Error('STRIPE_WEBHOOK_SECRET must be the whsec_ signing secret of the webhook endpoint.');
+    // Orders are confirmed and settled with the server-only database key.
+    if (!storageSecret) throw new Error('Payments require SUPABASE_STORAGE_SECRET (the server-only sb_secret_ key).');
+    // Real money needs a deliberate second switch, so a pasted live key cannot take payments by accident.
+    if (/^(sk|rk)_live_/.test(stripeSecretKey) && env.ALLOW_LIVE_PAYMENTS !== 'true') throw new Error('Live Stripe keys require ALLOW_LIVE_PAYMENTS=true. Use test keys until the launch checks pass.');
+  }
+  return { supabaseUrl, publishableKey, storageSecret, origin: url.origin, port, host, trustProxyHops, previewPassword, testCheckoutEnabled, stripeSecretKey, stripeWebhookSecret, stripeConnectWebhookSecret };
 }

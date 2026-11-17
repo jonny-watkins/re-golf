@@ -164,6 +164,12 @@
     .price-breakdown { margin: 18px 0; padding: 15px 0; border-block: 1px solid #edf0eb; display: grid; gap: 9px; font-size: .84rem; }
     .price-row { display: flex; justify-content: space-between; gap: 14px; color: #667168; }
     .price-row.total { color: var(--ink); font-size: 1rem; font-weight: 800; padding-top: 7px; border-top: 1px solid #edf0eb; }
+    .order-row { border-top: 1px solid #edf0eb; padding: 14px 0; display: grid; gap: 6px; font-size: .88rem; }
+    .order-row h4, .order-row p { margin: 0; }
+    .order-amounts { color: #777f78; font-size: .8rem; }
+    .order-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .order-actions input { flex: 1 1 200px; padding: 10px 12px; border: 1px solid #cfd6cc; border-radius: 10px; font: inherit; }
+    .order-actions [hidden] { display: none; }
     .estimate-note { font-size: .74rem; color: #777f78; line-height: 1.5; margin: 0 0 14px; }
     .dialog-actions { display: flex; gap: 10px; }
     .dialog-actions .button { flex: 1; }
@@ -280,6 +286,8 @@
       <div class="nav-actions">
         <button class="button button-outline" id="account-button" type="button">Sign in</button>
         <button class="button button-outline" id="messages-button" type="button">Messages</button>
+        <button class="button button-outline" id="orders-button" type="button" hidden>Orders</button>
+        <button class="button button-outline" id="checkout-test-button" type="button" hidden>Test checkout</button>
         <button class="icon-button" id="saved-filter" type="button" aria-label="Show saved clubs" title="Saved clubs">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 8.8c0 4.1-8.5 10-8.5 10s-8.5-5.9-8.5-10a4.5 4.5 0 0 1 8.5-2.1 4.5 4.5 0 0 1 8.5 2.1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         </button>
@@ -383,7 +391,7 @@
       <div class="seller-line"><span id="dialog-location"></span><span id="dialog-condition"></span></div>
 <p id="dialog-description" class="listing-description"></p>
       <div class="price-breakdown" id="price-breakdown"></div>
-      <p class="estimate-note">Buying is not available yet. Buyers will pay delivery and the Re-Golf fee; final charges will be shown before payment.</p>
+      <p class="estimate-note" id="estimate-note">Buying is not available yet. Buyers will pay delivery and the Re-Golf fee; final charges will be shown before payment.</p>
       <div class="dialog-actions">
         <button class="button button-outline" type="button" data-close-dialog>Keep browsing</button>
         <button class="button button-dark" id="checkout-button" type="button" disabled>Checkout coming later</button>
@@ -444,6 +452,17 @@
       <p id="messages-status" role="status" aria-live="polite"></p>
     </div>
   </dialog>
+  <dialog id="orders-dialog" aria-labelledby="orders-title">
+    <div class="dialog-inner">
+      <div class="dialog-head"><h2 id="orders-title">Orders</h2><button class="icon-button" type="button" data-close-dialog aria-label="Close orders">×</button></div>
+      <p class="estimate-note">Re-Golf holds every payment until the buyer has received the item and had time to check it. Sellers must use tracked postage.</p>
+      <button id="orders-refresh" type="button" class="button button-outline">Refresh</button>
+      <p id="orders-status" role="status" aria-live="polite"></p>
+      <div id="orders-payouts"></div>
+      <h3>Your purchases</h3><div id="orders-purchases"></div>
+      <h3>Your sales</h3><div id="orders-sales"></div>
+    </div>
+  </dialog>
   <dialog id="auth-dialog" aria-labelledby="auth-title">
     <div class="dialog-inner">
       <div class="dialog-head"><div><h2 id="auth-title">Sign in</h2><p id="auth-intro">Welcome back to Re-Golf.</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Close account">?</button></div>
@@ -461,5 +480,22 @@
     </div>
   </dialog>
   <script type="module" src="/src/main.ts"></script>
+  <dialog id="checkout-test-dialog" aria-labelledby="checkout-test-title">
+    <div class="dialog-inner">
+      <div class="dialog-head"><h2 id="checkout-test-title">Checkout testing</h2><button type="button" class="button button-light" data-close-dialog>Close</button></div>
+      <p><strong>Simulation only. No money moves, no parcel is sent and no seller payout occurs.</strong> These test items are separate from marketplace listings. Prices and fees are illustrative.</p>
+      <form id="test-item-form">
+        <div class="field"><label for="test-item-title">Test item name</label><input id="test-item-title" maxlength="70" required value="Practice driver"></div>
+        <div class="field"><label for="test-item-price">Item price (£)</label><input id="test-item-price" type="number" min="1" max="20000" step="0.01" required value="100"></div>
+        <button type="submit" class="button button-dark">Create test item as seller</button>
+      </form>
+      <p>Use a different account to buy a test item. Reservations last 15 minutes.</p>
+      <button id="test-checkout-refresh" type="button" class="button button-outline">Refresh items and orders</button>
+      <p id="test-checkout-status" role="status" aria-live="polite"></p>
+      <h3>Test items</h3><div id="test-inventory"></div>
+      <h3>Your test purchases and sales</h3><div id="test-orders"></div>
+      <p>Showing the latest 50 items and your latest 50 orders. Delivery buttons simulate progress; payment-provider integration comes later.</p>
+    </div>
+  </dialog>
 </body>
 </html>

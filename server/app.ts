@@ -7,10 +7,13 @@ import { categories, listingColumns, listingInput, maxPhotoBytes } from '../shar
 import { normalisePhoto } from './images.js';
 import type { AppConfig } from './config.js';
 import { socialRoutes, SocialError } from './social.js';
+import { checkoutRoutes } from './checkout.js';
+import { orderRoutes, paymentWebhook, settleOrders } from './orders.js';
+import { stripePayments, type Payments } from './payments.js';
 import { timingSafeEqual, createHash } from 'node:crypto';
 
 export type ClientFactory = (token?: string) => SupabaseClient;
-export function createApp(config: AppConfig, clientOverride?: ClientFactory, storageOverride?: SupabaseClient) {
+export function createApp(config: AppConfig, clientOverride?: ClientFactory, storageOverride?: SupabaseClient, paymentsOverride?: Payments) {
   const app = express();
   app.disable('x-powered-by');
   // Trust only the configured number of hops, never arbitrary forwarded headers.
@@ -19,6 +22,8 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
   if (config.previewPassword) app.use((req, res, next) => {
     res.set('X-Robots-Tag', 'noindex, nofollow');
     if (req.path === '/api/health' && req.method === 'GET') { res.json({ status: 'ok' }); return; }
+    // The payment provider cannot supply the preview password; its requests are verified by signature instead.
+    if (req.path === '/api/stripe/webhook' && req.method === 'POST') { next(); return; }
     // A separate header/cookie is needed for API calls, whose Authorization header carries the Supabase JWT.
     const supplied = req.headers.cookie?.split(';').map(value => value.trim()).find(value => value.startsWith('re_golf_preview='))?.slice('re_golf_preview='.length);
     const expected = createHash('sha256').update(config.previewPassword).digest('hex');
@@ -40,8 +45,18 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     strictTransportSecurity: config.origin.startsWith('https:'),
   }));
   app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+  const configured = Boolean(config.supabaseUrl && config.publishableKey);
+  const storageAdmin = storageOverride || (config.storageSecret ? createClient(config.supabaseUrl, config.storageSecret, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  }) : null);
+  const payments = storageAdmin ? paymentsOverride || (config.stripeSecretKey ? stripePayments(config.stripeSecretKey, config.stripeWebhookSecret, config.stripeConnectWebhookSecret) : null) : null;
+  // Before the rate limiter and JSON parser: provider retries must not be throttled, and the signature covers the raw body.
+  if (payments && storageAdmin) {
+    paymentWebhook(app, storageAdmin, payments);
+    app.locals.settleOrders = () => settleOrders(storageAdmin, payments);
+  }
   app.use('/api', rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false,
-    skip: req => req.path === '/health',
+    skip: req => req.path === '/health' || req.path === '/stripe/webhook',
     message: { error: 'Too many requests. Please try again in a minute.' } }));
   app.use('/api', express.json({ limit: '16kb' }));
   app.use('/api', (req, res, next) => {
@@ -56,10 +71,6 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     }
     next();
   });
-  const configured = Boolean(config.supabaseUrl && config.publishableKey);
-  const storageAdmin = storageOverride || (config.storageSecret ? createClient(config.supabaseUrl, config.storageSecret, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  }) : null);
   const client: ClientFactory = clientOverride || ((token) => createClient(config.supabaseUrl, config.publishableKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
@@ -89,7 +100,8 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
   app.get('/api/config', async (_req, res) => {
     const listingDetailsEnabled = await detailsReady();
     res.json({ configured, supabaseUrl: config.supabaseUrl, publishableKey: config.publishableKey,
-      listingDetailsEnabled, photosEnabled: Boolean(storageAdmin) && listingDetailsEnabled });
+      listingDetailsEnabled, photosEnabled: Boolean(storageAdmin) && listingDetailsEnabled,
+      testCheckoutEnabled: config.testCheckoutEnabled, paymentsEnabled: Boolean(payments) });
   });
   app.get('/api/health', (_req, res) => res.json({ status: 'ok', configured }));
   app.use('/api', (_req, res, next) => {
@@ -229,6 +241,8 @@ export function createApp(config: AppConfig, clientOverride?: ClientFactory, sto
     res.type('image/webp').send(Buffer.from(await result.data.arrayBuffer()));
   });
   socialRoutes(app, authenticated, columns);
+  if (config.testCheckoutEnabled) checkoutRoutes(app, authenticated);
+  if (payments && storageAdmin) orderRoutes(app, authenticated, storageAdmin, payments, config.origin);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found.' }));
   const handleError: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof z.ZodError) { res.status(400).json({ error: 'Check the submitted fields.', fields: error.flatten() }); return; }

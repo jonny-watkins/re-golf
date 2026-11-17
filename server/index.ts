@@ -27,6 +27,17 @@ const server = app.listen(config.port, config.host, () => {
   console.log(config.supabaseUrl ? 'Supabase configured. Apply the migration before using listings.' : 'Setup needed: follow SETUP.md to connect accounts and saved listings.');
 });
 
+// Applies order deadlines and performs due refunds and seller payouts. Repeat-safe,
+// so running it here avoids needing a separate paid scheduler for a single instance.
+const settle = app.locals.settleOrders as undefined | (() => Promise<Record<string, number>>);
+if (settle) {
+  const run = () => settle().then(result => {
+    if (Object.values(result).some(Boolean)) console.log('Order settlement:', JSON.stringify(result));
+  }).catch(error => console.error('Order settlement failed:', error instanceof Error ? error.message : 'Unknown error'));
+  setTimeout(run, 15_000).unref();
+  setInterval(run, 5 * 60_000).unref();
+}
+
 function shutdown() {
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 10_000).unref();

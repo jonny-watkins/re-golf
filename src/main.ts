@@ -3,6 +3,8 @@ import { categories, maxPhotos, maxPhotoBytes, type ListingPhoto, type Listing, 
 import { artSvg } from './art';
 import { sampleListings } from './samples';
 import { setupMessages } from './messages';
+import { setupCheckout } from './checkout';
+import { setupOrders } from './orders';
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -46,6 +48,10 @@ const authDialog = el<HTMLDialogElement>('auth-dialog');
 const sellForm = el<HTMLFormElement>('sell-form');
 const authForm = el<HTMLFormElement>('auth-form');
 const inbox = setupMessages(api, () => session?.user.id, () => openAuth());
+const checkout = setupCheckout(api, () => session?.user.id, () => openAuth());
+const orders = setupOrders(api, () => session?.user.id, () => openAuth());
+let quotedListing = '';
+const holdNote = 'Re-Golf holds your payment until you have received the item and had time to check it. The seller is paid only after that.';
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
@@ -214,6 +220,12 @@ function openListing(id: string) {
   el('price-breakdown').textContent = `Club price: ${pounds(current.price_pence)}`;
   el('owner-actions').hidden = current.sample || current.seller_id !== session?.user.id || current.status !== 'active';
   el('message-seller').hidden = !!current.sample || current.seller_id === session?.user.id || current.status !== 'active';
+  const buyable = orders.enabled && !current.sample && current.status === 'active' && current.seller_id !== session?.user.id;
+  const buy = el<HTMLButtonElement>('checkout-button');
+  quotedListing = '';
+  buy.disabled = !buyable;
+  buy.textContent = buyable ? 'Buy now' : orders.enabled ? 'Not available to buy' : 'Checkout coming later';
+  if (orders.enabled) el('estimate-note').textContent = holdNote;
   message('listing-message', '');
   listingDialog.showModal();
   void hydratePhotos(listingDialog);
@@ -296,6 +308,28 @@ el('search-input').addEventListener('input', () => { clearTimeout(searchTimer); 
 el('previous-page').addEventListener('click', () => { page--; void loadListings(); });
 el('next-page').addEventListener('click', () => { page++; void loadListings(); });
 el('saved-filter').addEventListener('click', () => { if (!session) { openAuth(); return; } savedOnly = !savedOnly; view = 'browse'; page = 1; void loadListings(); el('market').scrollIntoView({ behavior: 'smooth' }); });
+el('checkout-button').addEventListener('click', async () => {
+  if (!current) return;
+  if (!session) { listingDialog.close(); openAuth(); return; }
+  const id = current.id;
+  const buy = el<HTMLButtonElement>('checkout-button');
+  buy.disabled = true;
+  message('listing-message', '');
+  try {
+    if (quotedListing !== id) {
+      // First press shows the full, server-calculated price; the second press pays.
+      const quote = await orders.quote(id);
+      if (current?.id !== id) return;
+      el('price-breakdown').innerHTML = [['Club price', quote.item_pence], ['Buyer protection fee', quote.fee_pence], ['Tracked delivery', quote.delivery_pence], ['Total to pay', quote.total_pence]]
+        .map(([label, pence]) => `<div>${label}: <strong>${pounds(pence as number)}</strong></div>`).join('');
+      quotedListing = id;
+      buy.textContent = `Pay ${pounds(quote.total_pence)} securely`;
+    } else {
+      await orders.buy(id);
+    }
+  } catch (error) { message('listing-message', errorMessage(error)); }
+  finally { buy.disabled = false; }
+});
 el('message-seller').addEventListener('click', () => { if (!current) return; const id = current.id; listingDialog.close(); void inbox.start(id); });
 document.querySelectorAll('[data-open-sell]').forEach(button => button.addEventListener('click', () => openSell()));
 document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => { if (button.closest('dialog') === sellDialog && (savingListing || changingPhotos)) return; button.closest('dialog')?.close(); }));
@@ -376,7 +410,9 @@ el('sign-out').addEventListener('click', async () => {
 async function initialise() {
   renderFilters();
   try {
-    const config = await api<{ configured: boolean; supabaseUrl: string; publishableKey: string; photosEnabled: boolean; listingDetailsEnabled: boolean }>('/api/config');
+    const config = await api<{ configured: boolean; supabaseUrl: string; publishableKey: string; photosEnabled: boolean; listingDetailsEnabled: boolean; testCheckoutEnabled?: boolean; paymentsEnabled?: boolean }>('/api/config');
+    el('checkout-test-button').hidden = !config.testCheckoutEnabled;
+    orders.configure(Boolean(config.paymentsEnabled));
     configured = config.configured;
     photosEnabled = config.photosEnabled;
     for (const id of ['club-handedness', 'club-shaft-flex', 'club-loft']) {
@@ -388,7 +424,7 @@ async function initialise() {
       auth.auth.onAuthStateChange((event, value) => {
         const previousUser = session?.user.id;
         session = value;
-        if (previousUser !== value?.user.id) { saved.clear(); savedOnly = false; inbox.clear(); requestNumber++; setTimeout(() => void loadListings(), 0); }
+        if (previousUser !== value?.user.id) { saved.clear(); savedOnly = false; inbox.clear(); checkout.clear(); orders.clear(); requestNumber++; setTimeout(() => void loadListings(), 0); }
         el('account-button').textContent = value ? 'My account' : 'Sign in';
         // Supabase callbacks must not await another auth method while holding the auth lock.
         if (event === 'PASSWORD_RECOVERY') setTimeout(() => openAuth('update'), 0);
@@ -402,7 +438,9 @@ async function initialise() {
       if (error) throw error;
       session = data.session;
       if (session && new URLSearchParams(window.location.search).get('auth') === 'recovery') openAuth('update');
-      message('connection-status', `Development preview: accounts and listings are connected. ${photosEnabled ? 'Photos are enabled.' : 'Photo uploads are awaiting setup.'} Buying and professional verification are not available yet.`);
+      // Returning from the payment or payout-setup page.
+      if (session && orders.handleReturn(new URLSearchParams(window.location.search))) history.replaceState(null, '', '/');
+      message('connection-status', `Development preview: accounts and listings are connected. ${photosEnabled ? 'Photos are enabled.' : 'Photo uploads are awaiting setup.'} ${orders.enabled ? 'Payments are in test mode.' : 'Buying is not available yet.'} Professional verification is not available.`);
     } else {
       view = 'examples';
       message('connection-status', 'Development preview: example listings only. Accounts and saved listings are awaiting setup. No payments are taken.');

@@ -97,3 +97,14 @@ test('HTTP authentication and validation stop unauthorized writes before the dat
     assert.equal(databaseCalls, 0);
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });
+test('simulated checkout is off unless explicitly enabled', async () => {
+  assert.equal(readConfig({}).testCheckoutEnabled, false);
+  assert.equal(readConfig({ TEST_CHECKOUT_ENABLED: '1' }).testCheckoutEnabled, false);
+  assert.equal(readConfig({ TEST_CHECKOUT_ENABLED: 'true' }).testCheckoutEnabled, true);
+  const server = createApp(readConfig({})).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/config`);
+    assert.equal((await response.json()).testCheckoutEnabled, false);
+  } finally { server.close(); }
+});

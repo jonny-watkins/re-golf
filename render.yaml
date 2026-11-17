@@ -18,6 +18,13 @@ services:
         sync: false
       - key: SUPABASE_STORAGE_SECRET
         sync: false
+      # Stripe TEST keys only on this service.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_CONNECT_WEBHOOK_SECRET
+        sync: false
       - key: PREVIEW_ACCESS_PASSWORD
         generateValue: true
 # APP_ORIGIN defaults to Render's assigned HTTPS URL. For a custom domain,
