@@ -199,7 +199,7 @@ try {
   await stripe.v2.core.accounts.close(onboarding.provider_account, { applied_configurations: ['recipient'] }).catch(() => {});
   await admin.from('seller_accounts').update({ provider_account: ready.id }).eq('seller_id', seller.id);
   // A change on the account makes Stripe send account.updated to the "Connected accounts" webhook.
-  await stripe.v2.core.accounts.update(ready.id, { metadata: { seller_id: seller.id, nudge: '1' } });
+  await stripe.accounts.update(ready.id, { metadata: { seller_id: seller.id, nudge: '1' } });
   const viaWebhook = await until('payout status webhook', async () => (await admin.from('seller_accounts').select('payouts_enabled').eq('seller_id', seller.id).single()).data!.payouts_enabled, 45).catch(() => false);
   console.log('   payout status learned from', viaWebhook ? 'Stripe\'s connected-account webhook' : 'the settlement re-check (webhook not seen within 45s)');
 
