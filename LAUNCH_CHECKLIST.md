@@ -27,6 +27,7 @@ What stands between this and a publishable app:
 - [x] [D] Simulation code deleted (17 Nov). Its database tables are dropped by the pending migration below.
 - [x] [D] Work committed and pushed to the `payments` branch; the preview deploys from that branch. `main` is untouched as the fallback.
 - [x] [J] Migration `20261117180000_support_and_clawback.sql` applied to the development database (17 Nov). Verified on the preview: reviews, checkout switch, fee-inclusive pricing, audit trail, payout clawback; simulation tables removed.
+- [ ] [J] **Paste `supabase/migrations/20261117210000_accounts_and_emails.sql` into the Supabase SQL Editor and run it once.** It switches on account deletion, member suspension and the email queue. Then run `npm run test:orders:live` (three checks are skipped until it is applied).
 - [ ] [J] **Choose the support administrators:** set `ADMIN_EMAILS` on Render (and in local `.env`) to the sign-in email(s) allowed to open the Support screen, comma-separated. Until then the screen is off.
 - [ ] [J] Look over the `payments` branch and merge it into `main` when happy.
 
@@ -106,15 +107,18 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 ## 5. Notifications and email [D]/[J]
 
 - [ ] [J] Custom SMTP sender on a Relofted domain (Supabase's default sender is for testing only and heavily rate-limited). Needs the domain from section 8.
-- [ ] Transactional emails: order paid (to seller, with dispatch deadline), dispatched, delivered/hold started, released, refunded, issue opened.
-- [ ] New-message notification email (currently messages only appear on manual refresh).
+- [x] Emails written and queued by the database for every order step (paid, sold with the post-by deadline, posted with tracking, delivered, completed, paid out, problem reported, refunding, refunded, cancelled) and for new messages (at most one an hour per conversation). Sending is off until `EMAIL_API_KEY` and `EMAIL_FROM` are set; stale emails are dropped rather than sent late. Templates and queue logic are tested; **no real email has been sent**.
+- [ ] [J] Create a Resend account, verify the sending domain there, and give the server `EMAIL_API_KEY` and `EMAIL_FROM` (needs the domain).
+- [ ] [D] Send one of each email to a real inbox and check wording, links and spam placement.
+- [x] New-message notification email (queued; see above).
+- [ ] Unread-message indicator in the site header.
 
 ## 6. Admin and support [D]/[J]
 
 - [x] Support screen for administrators named in `ADMIN_EMAILS`: orders needing a decision (release to seller or refund buyer), order history with the buyer–seller messages, reports queue, take a listing off sale, pause all new purchases. Every action requires a reason and is audited. Non-administrators get a plain "not found". Hosted test passed (`npm run test:orders:live`, 13 checks).
-- [ ] User suspension (block an account from listing, buying and messaging).
+- [x] Support can suspend or restore a member from an order's details: they cannot list, message, save or trade, and their listings come off sale; orders already under way continue. Database rules tested; hosted check waits for the pending migration.
 - [ ] [J] Named support owner, support mailbox, and a review cadence for reports.
-- [ ] Account deletion. Today it would fail or destroy records: conversations, messages and (now) orders reference the profile. Needs anonymise-and-retain for anything financial.
+- [x] Account deletion from "My account": refused while an order is in progress; otherwise the profile, listings, photos, saved clubs and delivery addresses are removed, the sign-in email is scrubbed and sign-in blocked, the Stripe payout account is closed, and order records are kept. Messages stay visible to the other person as from a "Deleted member" — [J] confirm that with the privacy review. Hosted check waits for the pending migration.
 
 ## 7. Legal and policy [J] — get these reviewed; this list is not legal advice
 
