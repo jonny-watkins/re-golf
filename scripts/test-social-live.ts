@@ -1,9 +1,10 @@
 import 'dotenv/config';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { resolve } from 'node:path';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+import dotenv from 'dotenv';
 import express from 'express';
 import { chromium } from 'playwright';
 import { createClient } from '@supabase/supabase-js';
@@ -18,11 +19,16 @@ const users: { id: string; email: string; password: string; token: string; clien
 const listingIds: string[] = [], threadIds: string[] = [];
 const app = createApp(config); app.use(express.static(resolve('dist/client')));
 const server = app.listen(0,'127.0.0.1'); await once(server,'listening');
-const base = `http://127.0.0.1:${(server.address() as {port:number}).port}`; config.origin = base;
+const remote = process.env.TEST_BASE_URL;
+if (remote) assert.equal(remote, 'https://re-golf-development.onrender.com');
+const previewPassword = remote ? dotenv.parse(await readFile('.env.render-preview')).PREVIEW_ACCESS_PASSWORD : '';
+if (remote) assert.ok(previewPassword);
+const previewHeaders = previewPassword ? { Cookie: `re_golf_preview=${createHash('sha256').update(previewPassword).digest('hex')}` } : {};
+const base = remote || `http://127.0.0.1:${(server.address() as {port:number}).port}`; config.origin = base;
 let stage = 'fixtures', browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 const check = (result: {error: unknown}) => { assert.equal(!!result.error,false); };
 async function api(index:number, path:string, method='GET', body?:unknown, expected=200) {
-  const response = await fetch(base+path,{method,headers:{Authorization:`Bearer ${users[index].token}`,...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body!==undefined?JSON.stringify(body):undefined});
+  const response = await fetch(base+path,{method,headers:{...previewHeaders,Authorization:`Bearer ${users[index].token}`,...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body!==undefined?JSON.stringify(body):undefined});
   assert.equal(response.status,expected,`Unexpected status at ${method} ${path.split('?')[0]}`);
   return response.json();
 }
@@ -65,7 +71,7 @@ try {
   console.log('PASS: hosted favourites persistence, duplicate safety, private conversations, sender checks, bilateral blocking and private reports.');
   stage='headless browser';
   browser=await chromium.launch({channel:'msedge',headless:true});
-  const context=await browser.newContext(); const page=await context.newPage(); page.setDefaultTimeout(20000);
+  const context=await browser.newContext(previewPassword ? {httpCredentials:{username:'preview',password:previewPassword}} : {}); const page=await context.newPage(); page.setDefaultTimeout(20000);
   const errors:string[]=[]; page.on('pageerror',()=>errors.push('pageerror'));
   await page.goto(base); await page.locator('#account-button').click();
   await page.locator('#auth-email').fill(users[1].email); await page.locator('#auth-password').fill(users[1].password); await page.locator('#auth-submit').click();

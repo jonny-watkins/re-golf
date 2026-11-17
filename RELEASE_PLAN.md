@@ -1,6 +1,6 @@
 # Re Golf release plan
 
-Updated: 17 November 2026. Status: private preview preparation; no hosted deployment completed.
+Updated: 17 November 2026. Status: password-protected Render development preview deployed; authentication URL configuration and invitation readiness remain pending. Not a public marketplace launch.
 
 Release Re-Golf in three steps: a private listing preview, an invited transaction pilot, and a public UK marketplace. Public purchases should open only after payments, delivery, refunds, seller payouts, and support have worked end to end.
 

@@ -4,6 +4,8 @@ Updated: 17 November 2026
 
 ## Latest verified position — 17 November 2026
 
+Hosting update: the password-protected Render Free preview is live at https://re-golf-development.onrender.com, running commit `86c6807`. HTTPS protection, real Supabase reads, multi-account/headless social acceptance and photo upload/download/removal passed on the deployed host. GitHub publication and initial deployment are complete. Supabase email redirect configuration awaits the owner; hourly cleanup and invitation readiness remain pending. See SETUP.md for access and validation. This update supersedes older hosting-pending statements below.
+
 This record supersedes the historical implementation notes below. Supabase development project `ihndsjxwnogyxcixujwv` is connected. Foundation and photo migrations are applied; do not rerun either. Photos, golf details, listing persistence, owner controls, search, private profiles and multi-user access restrictions passed hosted acceptance. Headless Edge desktop/mobile viewport photo flows passed. The latest recorded local verification is 34 tests, TypeScript and production build passing.
 
 Actual confirmation and recovery email delivery passed on 17 November using the user-controlled AOL test inbox. Supabase verified confirmation; the owner confirmed the recovery form, password replacement and subsequent sign-in worked. Earlier generated-link tests also verified reuse rejection. Inbox/spam placement, detailed rendering and elapsed-time expiry remain unverified. All existing accounts and the new email-test account were preserved. See SETUP.md for evidence and send times.

@@ -10,7 +10,7 @@ Validation: `npm test`, `npm run build`, then `npm run test:smoke`.
 
 Listing photos, golf details, persistent favourites and private messaging with blocking/reporting are implemented and verified against the development database. Read the latest [setup record](SETUP.md) before applying migrations; the connected project already has them. Run `npm run photos:cleanup` regularly once uploads are enabled. Reports currently need manual review in Supabase.
 
-Hosting: Render with Supabase accounts/database. Reviewed source is published to GitHub. The development Blueprint is in [render.yaml](render.yaml); follow [the deployment steps](SETUP.md#deploy-the-development-preview-on-render). The preview requires username `preview` and the password generated in Render's private environment settings. Deployment is pending the Render connection; Supabase is connected. No payments are available.
+Hosting: the private development preview is live at https://re-golf-development.onrender.com on Render's Free plan, with Supabase accounts/database. Use username `preview` and obtain the password privately from the project owner. Reviewed source is published to GitHub; [render.yaml](render.yaml) records the service configuration. See the latest [setup record](SETUP.md) for deployment evidence and remaining authentication URL setup. No payments are available.
 
 See [the development and launch plan](DEVELOPMENT_PLAN.md) for agreed scope, implementation milestones, setup responsibilities, and launch checks.
 

@@ -1,5 +1,17 @@
 # Connect Re Golf accounts and listings
 
+## Render preview live — 17 November 2026
+
+The password-protected development preview is live at https://re-golf-development.onrender.com. Render service `srv-dbu3sp0u01pc73djj1lg` uses the Free plan in Frankfurt, one instance, and manual deployments. Deployment `dep-dbu3spou01pc73djj4i0` runs tested commit `86c68079e5caf2c9b6516ee37c30af11d42185b1`. It was created through the Render API using the reviewed Blueprint settings; there is no Blueprint sync attached. No paid resource was created.
+
+Preview username: `preview`. Its generated password is stored privately in Render's environment settings and the ignored local `.env.render-preview` file. The Render API credential stays in the ignored `.env` file. Neither value is included in the repository or logs. Dashboard: https://dashboard.render.com/web/srv-dbu3sp0u01pc73djj1lg.
+
+HTTPS verification passed: public health probe, denied unauthenticated app/API access, protected homepage/assets, secure cookie and CSP, real Supabase listing reads, and private-file isolation. Multi-account API and headless desktop/mobile tests passed against Render for sign-in, saved favourites, conversation privacy, sending, blocking/unblocking, report submission, sign-out clearing and archived visibility. Actual photo upload, WebP processing, Storage download and removal also passed. Disposable fixtures were removed; existing users and listing were preserved. No desktop control was used.
+
+**Authentication URL configuration is still awaiting owner completion.** In Supabase Auth URL Configuration, set Site URL to `https://re-golf-development.onrender.com` and add exact redirects `https://re-golf-development.onrender.com/` and `https://re-golf-development.onrender.com/?auth=recovery`, retaining localhost entries. Existing sign-in works, but confirmation/reset email callbacks at the deployed origin are not yet accepted as verified. Hourly cleanup scheduling remains separate pending work. Free Render services can sleep when idle; this is a development preview, not a public marketplace launch.
+
+To repeat social acceptance against this host, build locally and run `$env:TEST_PROJECT='ihndsjxwnogyxcixujwv'; $env:TEST_BASE_URL='https://re-golf-development.onrender.com'; npx tsx scripts/test-social-live.ts`. It reads preview access from `.env.render-preview`, never prints it, and cleans only its own fixtures. This live-deployment record supersedes earlier deployment-pending notes below.
+
 ## GitHub publication — 17 November 2026
 
 Reviewed source was published to `main` as commit `43d8356` (marketplace backend and protected development preview). The candidate passed 43 automated tests, TypeScript, the production build, smoke checks and a redacted staged-secret scan. GitHub [App checks](https://github.com/jonny-watkins/re-golf/actions/runs/44073489549) passed on that exact commit, including clean dependency installation. `.env`, build output and test screenshots were excluded. The Render Blueprint now includes the server-only photo-storage setting and generates a preview password; the app requires preview access on Render. Render deployment is not complete: the Render plugin still needs connecting. The repository's pre-existing GitHub Pages workflow also ran, but static Pages cannot serve the Express API and does not constitute the application deployment. Existing Supabase accounts and data are unchanged. This record supersedes earlier statements that the source has not been pushed.
