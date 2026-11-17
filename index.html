@@ -140,6 +140,22 @@
     .dialog-head p { color: var(--muted); font-size: .85rem; margin: 0; }
     .dialog-visual { height: 170px; background: var(--tone, #e6ecdc); border-radius: 14px; display: grid; place-items: center; margin: 20px 0; }
     .dialog-visual svg { height: 90%; width: 75%; }
+    .listing-visual > img { width: 100%; height: 100%; object-fit: cover; }
+    .listing-visual .condition-label, .listing-visual .save-button { z-index: 1; }
+    .dialog-visual:has(img) { height: 300px; }
+    .dialog-visual img { width: 100%; height: 100%; object-fit: contain; min-height: 0; border-radius: 14px; }
+    .photo-grid, .photo-gallery { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0 20px; }
+    .photo-tile { width: 150px; padding: 8px; border: 1px solid #d7dfd0; border-radius: 12px; background: #fff; }
+    .photo-tile img { width: 100%; height: 110px; object-fit: cover; border-radius: 8px; }
+    .photo-tile button { display: block; width: 100%; margin-top: 6px; padding: 6px; border: 1px solid #cbd4c3; border-radius: 6px; background: #f6f8f1; cursor: pointer; }
+    .photo-tile span { display: block; font-size: 12px; margin-top: 4px; }
+    .photo-gallery button { border: 2px solid transparent; padding: 2px; background: transparent; border-radius: 8px; cursor: pointer; }
+    .photo-gallery button[aria-pressed=true] { border-color: #173f30; }
+    .photo-gallery img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
+    .photo-help { color: #59634f; font-size: 13px; }
+    .golf-specs { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; }
+    button:disabled { cursor: not-allowed; opacity: .6; }
+    @media (max-width: 480px) { .photo-tile { width: calc(50% - 6px); } .dialog-visual:has(img) { height: 230px; } }
     .seller-line { display: flex; justify-content: space-between; gap: 12px; color: #68746b; font-size: .82rem; margin-bottom: 17px; }
     .auth-option { display: flex; gap: 12px; align-items: start; background: #f0f4e9; border: 1px solid #e0e9d5; border-radius: 13px; padding: 14px; cursor: pointer; }
     .auth-option input { margin-top: 4px; accent-color: var(--forest); }
@@ -221,6 +237,30 @@
       .dialog-inner { padding: 20px; }
       .search .button { padding-inline: 14px; }
     }
+
+    [hidden] { display: none !important; }
+    button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+    .market-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0; }
+    .field textarea { width: 100%; padding: 12px; border: 1px solid #dfe5dc; border-radius: 10px; font: inherit; resize: vertical; }
+    .listing-description { white-space: pre-wrap; overflow-wrap: anywhere; }
+    #market-message, #auth-message, #listing-message { line-height: 1.6; color: var(--forest); }
+    #pagination { justify-content: center; }
+    #account-summary { overflow-wrap: anywhere; }
+    .auth-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+    .auth-links button { font-size: .85rem; }
+    .listing h3 { overflow-wrap: anywhere; }
+    @media(max-width: 600px) { .nav { flex-wrap: wrap; gap: 12px; padding-block: 12px; } .nav-actions { margin-left: auto; gap: 5px; } }
+    .conversation-list { display: grid; gap: 8px; margin: 16px 0; }
+    .conversation-list button { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+    .message-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
+    #thread-panel { border-top: 1px solid #dce4d5; padding-top: 16px; }
+    #message-history { list-style: none; padding: 0; max-height: 360px; overflow-y: auto; }
+    #message-history li { background: #f0f4e9; border-radius: 12px; margin: 10px 20px 10px 0; padding: 12px; overflow-wrap: anywhere; }
+    #message-history li.message-own { background: #e1edcc; margin: 10px 0 10px 20px; }
+    #message-history p { white-space: pre-wrap; margin-top: 6px; }
+    #messages-status, #block-status { margin: 12px 0; line-height: 1.5; }
+    #report-form { border-top: 1px solid #dce4d5; padding-top: 16px; }
+    @media(max-width: 600px) { .nav-actions { flex-wrap: wrap; gap: 6px; } .nav-actions .button { padding: 9px 10px; font-size: .75rem; } }
   </style>
 </head>
 <body>
@@ -238,6 +278,8 @@
         <a href="#verification">How verification works</a>
       </div>
       <div class="nav-actions">
+        <button class="button button-outline" id="account-button" type="button">Sign in</button>
+        <button class="button button-outline" id="messages-button" type="button">Messages</button>
         <button class="icon-button" id="saved-filter" type="button" aria-label="Show saved clubs" title="Saved clubs">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 8.8c0 4.1-8.5 10-8.5 10s-8.5-5.9-8.5-10a4.5 4.5 0 0 1 8.5-2.1 4.5 4.5 0 0 1 8.5 2.1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         </button>
@@ -262,7 +304,7 @@
           <div class="hero-proof">
             <span><b>UK-wide</b> marketplace</span>
             <span><b>Buyer-paid</b> delivery &amp; fees</span>
-            <span><b>Optional</b> PGA pro check</span>
+            <span><b>Coming later</b> pro checks</span>
           </div>
         </div>
         <div class="hero-art" aria-hidden="true">
@@ -277,7 +319,7 @@
             <circle cx="193" cy="174" r="13" fill="#fffdf3" stroke="#d7ed9b" stroke-width="3"/>
             <path d="M85 324c34-20 75-16 99-2m-87 12c37-18 77-15 101 0" stroke="#b3c69d" stroke-width="3" stroke-linecap="round"/>
           </svg>
-          <div class="floating-tag tag-check"><span class="tag-check-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 12 4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>PGA pro check<small>Optional at checkout</small></span></div>
+          <div class="floating-tag tag-check"><span class="tag-check-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 12 4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Pro checks planned<small>Not available yet</small></span></div>
           <div class="floating-tag tag-save"><span><b>Good gear,</b><small>ready for another round</small></span></div>
         </div>
       </div>
@@ -286,7 +328,7 @@
     <div class="demo-strip">
       <div class="wrap">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 3.8 7v5.5c0 4.8 3.5 7.6 8.2 9.5 4.7-1.9 8.2-4.7 8.2-9.5V7L12 3Z" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        <span><strong>Prototype preview:</strong> example listings and estimated fees only. No live orders or payments are processed.</span>
+        <span id="connection-status" role="status">Loading the marketplace?</span>
       </div>
     </div>
 
@@ -310,8 +352,11 @@
         </div>
         <div class="result-count" id="result-count" aria-live="polite"></div>
       </div>
+      <div class="market-toolbar"><button id="browse-listings" class="button button-light" type="button">Browse listings</button><button id="my-listings" class="button button-outline" type="button">My listings</button><button id="example-listings" class="button button-outline" type="button">View examples</button></div>
+      <p id="market-message" role="status"></p>
       <div class="filters" id="filters" aria-label="Filter clubs by category"></div>
       <div class="listing-grid" id="listing-grid"></div>
+      <div class="market-toolbar" id="pagination"><button id="previous-page" class="button button-outline" type="button">Previous</button><span id="page-label"></span><button id="next-page" class="button button-outline" type="button">Next</button></div>
       <div class="sell-cta">
         <div><h2>Got a club to pass on?</h2><p>List it in minutes and let someone else take it for a spin.</p></div>
         <button class="button" type="button" data-open-sell>List your club <span aria-hidden="true">→</span></button>
@@ -322,7 +367,7 @@
   <footer>
     <div class="wrap footer-row">
       <a class="brand" href="#" aria-label="Re-Golf home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 19 14.8 5m0 0 2.2 1.2M14.8 5l-2.2-1.2M7 19c-.8 1.4-2.1 2.1-3.6 1.6-1.1-.4-1.5-1.4-1.1-2.4.4-1.1 1.8-1.8 3.6-1.5l2.2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.5" cy="18.5" r="2" fill="#d7ed9b"/></svg></span>Re-Golf</a>
-      <div class="footer-note">Independent concept prototype. Product names are examples only; Re-Golf is not affiliated with any golf equipment brand or marketplace.</div>
+      <div class="footer-note">Re-Golf development preview. Purchases are not yet available. Example listings are labelled and kept separate from seller listings.</div>
     </div>
   </footer>
 
@@ -333,247 +378,88 @@
         <button class="icon-button" type="button" data-close-dialog aria-label="Close listing details"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
       </div>
       <div class="dialog-visual" id="dialog-visual"></div>
+      <div id="photo-gallery" class="photo-gallery" aria-label="Listing photos"></div>
+      <p id="dialog-specs" class="golf-specs"></p>
       <div class="seller-line"><span id="dialog-location"></span><span id="dialog-condition"></span></div>
-      <label class="auth-option">
-        <input id="verification-toggle" type="checkbox">
-        <span><strong>Add a PGA professional verification</strong><small>£10 service fee plus estimated route postage. The buyer pays; this is a demo estimate and is confirmed before any real order.</small></span>
-      </label>
+<p id="dialog-description" class="listing-description"></p>
       <div class="price-breakdown" id="price-breakdown"></div>
-      <p class="estimate-note">Illustrative test-mode breakdown only. Buyer fees and delivery estimates are configurable; no money will be charged.</p>
+      <p class="estimate-note">Buying is not available yet. Buyers will pay delivery and the Re-Golf fee; final charges will be shown before payment.</p>
       <div class="dialog-actions">
         <button class="button button-outline" type="button" data-close-dialog>Keep browsing</button>
-        <button class="button button-dark" id="checkout-button" type="button">Continue to test checkout</button>
+        <button class="button button-dark" id="checkout-button" type="button" disabled>Checkout coming later</button>
       </div>
-      <div class="status-message" id="checkout-message" role="status"></div>
+      <button id="message-seller" class="button button-dark" type="button" hidden>Message seller</button>
+      <div id="owner-actions" class="dialog-actions" hidden><button id="edit-listing" class="button button-light" type="button">Edit listing</button><button id="archive-listing" class="button button-outline" type="button">Archive listing</button></div><p id="listing-message" role="status"></p>
     </div>
   </dialog>
 
   <dialog id="sell-dialog" aria-labelledby="sell-dialog-title">
     <div class="dialog-inner">
       <div class="dialog-head">
-        <div><h2 id="sell-dialog-title">List a club</h2><p>Add a few details to create a sample listing.</p></div>
+        <div><h2 id="sell-dialog-title">List a club</h2><p>Add the details and show buyers the condition of your equipment.</p></div>
         <button class="icon-button" type="button" data-close-dialog aria-label="Close listing form"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
       </div>
       <form id="sell-form">
         <div class="form-grid">
+          <div class="field full"><label for="club-brand">Brand</label><input id="club-brand" name="brand" required maxlength="40" placeholder="e.g. Ping"></div>
           <div class="field full"><label for="club-name">Club name</label><input id="club-name" name="name" required maxlength="70" placeholder="e.g. 7 iron, forged blade"></div>
           <div class="field"><label for="club-category">Category</label><select id="club-category" name="category"><option>Drivers</option><option>Irons</option><option>Putters</option><option>Wedges</option><option>Woods</option><option>Bags &amp; gear</option></select></div>
           <div class="field"><label for="club-condition">Condition</label><select id="club-condition" name="condition"><option>Very good</option><option>Good</option><option>Well played</option><option>New</option></select></div>
-          <div class="field"><label for="club-price">Price (£)</label><input id="club-price" name="price" type="number" min="1" max="20000" step="1" required placeholder="150"></div>
+          <div class="field"><label for="club-price">Price (£)</label><input id="club-price" name="price" type="number" min="1" max="20000" step="0.01" required placeholder="150"></div>
           <div class="field"><label for="club-location">UK location</label><input id="club-location" name="location" maxlength="40" required placeholder="e.g. Leeds"></div>
+          <p id="golf-details-status" class="photo-help field full" hidden>Golf-specific details are awaiting setup. You can still save the other listing details.</p>
+          <div class="field"><label for="club-handedness">Handedness (optional)</label><select id="club-handedness" name="handedness"><option value="">Not specified</option><option>Right</option><option>Left</option><option>Ambidextrous</option></select></div>
+          <div class="field"><label for="club-shaft-flex">Shaft flex (optional)</label><select id="club-shaft-flex" name="shaft_flex"><option value="">Not specified</option><option>Ladies</option><option>Senior</option><option>Regular</option><option>Stiff</option><option>Extra stiff</option><option>Uniflex</option></select></div>
+          <div class="field"><label for="club-loft">Loft in degrees (optional)</label><input id="club-loft" name="loft" type="number" min="1" max="90" step="0.5" placeholder="e.g. 10.5"></div>
         </div>
-        <button class="button button-dark" type="submit" style="width:100%">Preview listing</button>
+          <div class="field full"><label for="club-description">Description</label><textarea id="club-description" name="description" rows="4" maxlength="2000" placeholder="Describe wear, specifications, and anything a buyer should know."></textarea></div>
+        <div class="field full"><label for="club-photos">Photos</label><p id="photo-help" class="photo-help">Up to six JPEG, PNG or WebP photos, 8 MB each. Include the face, shaft and any wear. New photos upload when you save. Changes to existing photos save immediately.</p><input id="club-photos" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-describedby="photo-help photo-status"><div id="photo-editor" class="photo-grid"></div><p id="photo-status" role="status" class="photo-help"></p></div>
+        <button class="button button-dark" type="submit" style="width:100%">Save listing</button>
         <div class="status-message" id="sell-message" role="status"></div>
       </form>
     </div>
   </dialog>
 
-  <script>
-    const categories = ["All clubs", "Drivers", "Irons", "Putters", "Wedges", "Woods", "Bags & gear"];
-    const demoPricing = { buyerFee: 2.50, standardDelivery: 5.95, pgaRoutePostage: 9.95, verification: 10 };
-    const sampleListings = [
-      { id: 1, name: "G430 MAX Driver", brand: "PING", category: "Drivers", condition: "Very good", price: 389, location: "Surrey", tone: "#e5ebdb", art: "driver" },
-      { id: 2, name: "P790 7-Iron", brand: "TaylorMade", category: "Irons", condition: "Good", price: 119, location: "Manchester", tone: "#e9e5d9", art: "iron" },
-      { id: 3, name: "Newport 2 Putter", brand: "Scotty Cameron", category: "Putters", condition: "Very good", price: 285, location: "Edinburgh", tone: "#e4e9e4", art: "putter" },
-      { id: 4, name: "Jaws Raw 56° Wedge", brand: "Callaway", category: "Wedges", condition: "Good", price: 84, location: "Bristol", tone: "#e9e2d4", art: "wedge" },
-      { id: 5, name: "Stealth 2 3-Wood", brand: "TaylorMade", category: "Woods", condition: "Very good", price: 179, location: "York", tone: "#e0e9e4", art: "wood" },
-      { id: 6, name: "Players 4 Stand Bag", brand: "Titleist", category: "Bags & gear", condition: "Good", price: 95, location: "Cardiff", tone: "#e8e4dc", art: "bag" }
-    ];
-    const artSvg = (type) => {
-      const shaft = '<path d="M105 30 180 230" stroke="#34483a" stroke-width="8" stroke-linecap="round"/><path d="m99 27 12 1" stroke="#1c2f25" stroke-width="11" stroke-linecap="round"/>';
-      const heads = {
-        driver: '<path d="M152 225c12-29 54-39 84-17 12 9 10 28-4 35-26 14-64 8-80-18Z" fill="#274b39" stroke="#c3d4b4" stroke-width="3"/><path d="M175 218c17-8 38-7 54 1" stroke="#87a275" stroke-width="3" stroke-linecap="round"/>',
-        iron: '<path d="M160 214c16-16 50-16 72-1l-9 24c-21 7-44 4-61-8l-2-15Z" fill="#aebbb0" stroke="#34483a" stroke-width="3"/><path d="m171 215 5 19m9-21 3 24m10-24 2 23m11-21-1 19" stroke="#6b7b70" stroke-width="2"/>',
-        putter: '<path d="m158 221 61-8 10 17-64 10-7-19Z" fill="#263e31" stroke="#a9bb9e" stroke-width="3"/><path d="m168 226 53-7" stroke="#84977f" stroke-width="2"/>',
-        wedge: '<path d="M162 215c16-17 44-16 61-1l-7 24c-19 6-37 3-53-8l-1-15Z" fill="#b9c3b9" stroke="#34483a" stroke-width="3"/><path d="m169 218 46 8m-43-1 41 8" stroke="#718174" stroke-width="2"/>',
-        wood: '<path d="M153 222c10-25 43-34 69-19 12 7 11 25-2 32-22 12-53 9-67-13Z" fill="#315540" stroke="#bbd0ac" stroke-width="3"/><path d="M171 216c16-7 32-6 44 1" stroke="#8ba57d" stroke-width="3" stroke-linecap="round"/>',
-        bag: '<path d="m153 92 48 0 10 138c-16 14-45 14-61 0l3-138Z" fill="#315540" stroke="#d0dbc7" stroke-width="4"/><path d="M155 105h47m-51 93h62M169 93V76h18v17" stroke="#bed0ae" stroke-width="4"/><path d="M166 122v51m15-51v51m15-51v51" stroke="#91a984" stroke-width="3"/>'
-      };
-      return '<svg viewBox="0 0 300 270" fill="none" aria-hidden="true">' +
-        '<ellipse cx="157" cy="238" rx="72" ry="12" fill="rgba(35,55,39,.1)"/>' +
-        (type === "bag" ? heads.bag : shaft + heads[type]) +
-        (type === "driver" || type === "wood" ? '<circle cx="107" cy="42" r="10" fill="#d8e79f"/>' : '') +
-        '</svg>';
-    };
-
-    const grid = document.getElementById("listing-grid");
-    const filters = document.getElementById("filters");
-    const searchInput = document.getElementById("search-input");
-    const listingDialog = document.getElementById("listing-dialog");
-    const sellDialog = document.getElementById("sell-dialog");
-    const verificationToggle = document.getElementById("verification-toggle");
-    const savedIds = new Set();
-    let activeCategory = "All clubs";
-    let searchTerm = "";
-    let savedOnly = false;
-    let currentListing = null;
-    let listings = sampleListings.map(item => ({ ...item, sample: true }));
-
-    const pounds = amount => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 2 }).format(amount);
-
-    function renderFilters() {
-      filters.innerHTML = categories.map(category =>
-        '<button class="chip' + (activeCategory === category ? ' active' : '') + '" type="button" data-category="' + category + '" aria-pressed="' + (activeCategory === category) + '">' + category + '</button>'
-      ).join("");
-    }
-
-    function renderListings() {
-      const shown = listings.filter(item => {
-        const matchesCategory = activeCategory === "All clubs" || item.category === activeCategory;
-        const text = (item.name + " " + item.brand + " " + item.category + " " + item.location).toLowerCase();
-        return matchesCategory && text.includes(searchTerm) && (!savedOnly || savedIds.has(item.id));
-      });
-      document.getElementById("result-count").textContent = savedOnly
-        ? shown.length + (shown.length === 1 ? " saved club" : " saved clubs")
-        : shown.length + (shown.length === 1 ? " club to explore" : " clubs to explore");
-      if (!shown.length) {
-        grid.innerHTML = '<div class="empty-state">' + (savedOnly ? 'No saved clubs yet. Tap the heart on a listing to keep it here.' : 'No clubs match that search. Try another name or category.') + '</div>';
-        return;
-      }
-      grid.innerHTML = shown.map(item => '<article class="listing">' +
-        '<div class="listing-visual" style="--tone:' + item.tone + '">' +
-          '<span class="condition-label">' + item.condition + '</span>' +
-          '<button class="icon-button save-button' + (savedIds.has(item.id) ? ' saved' : '') + '" type="button" data-save="' + item.id + '" aria-label="' + (savedIds.has(item.id) ? 'Remove saved club' : 'Save club') + '" aria-pressed="' + savedIds.has(item.id) + '">' +
-            '<svg viewBox="0 0 24 24" fill="' + (savedIds.has(item.id) ? 'currentColor' : 'none') + '" aria-hidden="true"><path d="M20.5 8.8c0 4.1-8.5 10-8.5 10s-8.5-5.9-8.5-10a4.5 4.5 0 0 1 8.5-2.1 4.5 4.5 0 0 1 8.5 2.1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>' +
-          '</button>' + artSvg(item.art) +
-        '</div>' +
-        '<div class="listing-info"><div class="listing-meta"><span class="category-label">' + item.category + '</span><span>' + (item.sample ? 'Example listing' : 'New listing') + '</span></div>' +
-          '<h3>' + escapeHtml(item.brand) + ' ' + escapeHtml(item.name) + '</h3><div class="listing-sub">' + escapeHtml(item.location) + ' · ' + escapeHtml(item.condition) + '</div>' +
-          '<div class="listing-bottom"><div><div class="listing-price">' + pounds(item.price) + '</div><div class="auth-available"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12 4 4 10-10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>PGA check available</div></div>' +
-          '<button class="details-link" type="button" data-listing="' + item.id + '">View details →</button></div>' +
-        '</div></article>').join("");
-    }
-
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
-    }
-
-    function renderBreakdown() {
-      if (!currentListing) return;
-      const verified = verificationToggle.checked;
-      const delivery = verified ? demoPricing.pgaRoutePostage : demoPricing.standardDelivery;
-      const buyerFee = demoPricing.buyerFee;
-      const verificationFee = verified ? demoPricing.verification : 0;
-      const rows = [
-        ["Club price", pounds(currentListing.price)],
-        ["Buyer service fee (demo)", pounds(buyerFee)],
-        [verified ? "PGA route postage (estimate)" : "Delivery (estimate)", pounds(delivery)]
-      ];
-      if (verified) rows.push(["PGA verification", pounds(verificationFee)]);
-      const total = currentListing.price + buyerFee + delivery + verificationFee;
-      document.getElementById("price-breakdown").innerHTML =
-        rows.map(row => '<div class="price-row"><span>' + row[0] + '</span><span>' + row[1] + '</span></div>').join("") +
-        '<div class="price-row total"><span>Estimated buyer total</span><span>' + pounds(total) + '</span></div>';
-    }
-
-    function openListing(id) {
-      currentListing = listings.find(item => item.id === Number(id));
-      if (!currentListing) return;
-      document.getElementById("listing-dialog-title").textContent = currentListing.brand + " " + currentListing.name;
-      document.getElementById("listing-dialog-subtitle").textContent = currentListing.category + " · " + pounds(currentListing.price);
-      document.getElementById("dialog-location").textContent = "Seller location: " + currentListing.location;
-      document.getElementById("dialog-condition").textContent = currentListing.condition;
-      document.getElementById("dialog-visual").style.setProperty("--tone", currentListing.tone);
-      document.getElementById("dialog-visual").innerHTML = artSvg(currentListing.art);
-      verificationToggle.checked = false;
-      document.getElementById("checkout-message").classList.remove("visible");
-      renderBreakdown();
-      listingDialog.showModal();
-    }
-
-    filters.addEventListener("click", event => {
-      const button = event.target.closest("[data-category]");
-      if (!button) return;
-      activeCategory = button.dataset.category;
-      savedOnly = false;
-      document.getElementById("saved-filter").classList.remove("saved");
-      renderFilters();
-      renderListings();
-    });
-
-    grid.addEventListener("click", event => {
-      const save = event.target.closest("[data-save]");
-      if (save) {
-        const id = Number(save.dataset.save);
-        savedIds.has(id) ? savedIds.delete(id) : savedIds.add(id);
-        renderListings();
-        return;
-      }
-      const details = event.target.closest("[data-listing]");
-      if (details) openListing(details.dataset.listing);
-    });
-
-    document.getElementById("search-form").addEventListener("submit", event => {
-      event.preventDefault();
-      searchTerm = searchInput.value.trim().toLowerCase();
-      savedOnly = false;
-      renderListings();
-      document.getElementById("market").scrollIntoView({ behavior: "smooth" });
-    });
-    searchInput.addEventListener("input", () => {
-      searchTerm = searchInput.value.trim().toLowerCase();
-      renderListings();
-    });
-
-    document.getElementById("saved-filter").addEventListener("click", event => {
-      savedOnly = !savedOnly;
-      event.currentTarget.classList.toggle("saved", savedOnly);
-      renderListings();
-      document.getElementById("market").scrollIntoView({ behavior: "smooth" });
-    });
-
-    document.querySelectorAll("[data-open-sell]").forEach(button => button.addEventListener("click", () => {
-      document.getElementById("sell-message").classList.remove("visible");
-      sellDialog.showModal();
-    }));
-    document.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", () => {
-      button.closest("dialog").close();
-    }));
-    verificationToggle.addEventListener("change", renderBreakdown);
-
-    document.getElementById("checkout-button").addEventListener("click", () => {
-      const message = document.getElementById("checkout-message");
-      message.textContent = "Test checkout only — no order has been placed and no payment has been taken. A real checkout will need confirmed postage, buyer fees, and PGA partner arrangements.";
-      message.classList.add("visible");
-    });
-
-    document.getElementById("sell-form").addEventListener("submit", event => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      if (!form.reportValidity()) return;
-      const data = new FormData(form);
-      const category = data.get("category");
-      const artMap = { Drivers: "driver", Irons: "iron", Putters: "putter", Wedges: "wedge", Woods: "wood", "Bags & gear": "bag" };
-      const newListing = {
-        id: Date.now(),
-        name: String(data.get("name")).trim(),
-        brand: "Your club",
-        category,
-        condition: data.get("condition"),
-        price: Number(data.get("price")),
-        location: String(data.get("location")).trim(),
-        tone: "#e7ecdf",
-        art: artMap[category] || "iron",
-        sample: false
-      };
-      listings.unshift(newListing);
-      activeCategory = "All clubs";
-      savedOnly = false;
-      searchTerm = "";
-      searchInput.value = "";
-      renderFilters();
-      renderListings();
-      document.getElementById("sell-message").textContent = "Your sample listing is live in this preview. It isn’t saved after you close or refresh the page.";
-      document.getElementById("sell-message").classList.add("visible");
-      form.reset();
-      window.setTimeout(() => {
-        if (sellDialog.open) sellDialog.close();
-        document.getElementById("market").scrollIntoView({ behavior: "smooth" });
-      }, 1200);
-    });
-
-    renderFilters();
-    renderListings();
-  </script>
+  <dialog id="messages-dialog" aria-labelledby="messages-title">
+    <div class="dialog-inner">
+      <div class="dialog-head"><h2 id="messages-title">Messages</h2><button class="icon-button" type="button" data-close-dialog aria-label="Close messages">×</button></div>
+      <p>Ask about a club and keep the conversation here. Buying and payments are not available yet.</p>
+      <div id="conversation-list" class="conversation-list"></div>
+      <div class="message-actions"><button id="previous-conversations" type="button" class="button button-light">Previous</button><span id="conversation-page"></span><button id="next-conversations" type="button" class="button button-light">Next</button><button id="refresh-messages" type="button" class="button button-outline">Refresh</button></div>
+      <section id="thread-panel" hidden aria-labelledby="thread-title">
+        <h3 id="thread-title"></h3>
+        <button id="older-messages" type="button" class="button button-light" hidden>Load older messages</button>
+        <ol id="message-history" aria-label="Message history"></ol>
+        <p id="messages-empty">No messages yet. Say hello or ask about the club.</p>
+        <p id="block-status" role="status"></p>
+        <form id="message-form"><div class="field"><label for="message-body">Your message</label><textarea id="message-body" maxlength="2000" rows="3" required></textarea></div><button id="send-message" class="button button-dark" type="submit">Send message</button></form>
+        <div class="message-actions"><button id="block-user" type="button" class="button button-outline">Block golfer</button><button id="report-user" type="button" class="button button-outline">Report conversation</button></div>
+        <form id="report-form" hidden>
+          <div class="field"><label for="report-reason">Reason</label><select id="report-reason"><option value="spam">Spam</option><option value="harassment">Harassment</option><option value="scam">Suspected scam</option><option value="other">Other</option></select></div>
+          <div class="field"><label for="report-details">What happened?</label><textarea id="report-details" maxlength="2000" rows="3" required></textarea></div>
+          <p>Your report is private to you and the review team. Reports are reviewed manually during this preview.</p>
+          <button id="submit-report" type="submit" class="button button-dark">Submit report</button>
+        </form>
+      </section>
+      <p id="messages-status" role="status" aria-live="polite"></p>
+    </div>
+  </dialog>
+  <dialog id="auth-dialog" aria-labelledby="auth-title">
+    <div class="dialog-inner">
+      <div class="dialog-head"><div><h2 id="auth-title">Sign in</h2><p id="auth-intro">Welcome back to Re-Golf.</p></div><button class="icon-button" type="button" data-close-dialog aria-label="Close account">?</button></div>
+      <div id="account-summary" hidden><p id="account-email"></p><button id="sign-out" type="button" class="button button-outline">Sign out</button></div>
+      <form id="auth-form">
+        <div class="form-grid">
+          <div class="field full" id="display-name-field" hidden><label for="display-name">Display name</label><input id="display-name" name="display_name" maxlength="60" autocomplete="nickname"></div>
+          <div class="field full" id="email-field"><label for="auth-email">Email address</label><input id="auth-email" name="email" type="email" autocomplete="email" required maxlength="254"></div>
+          <div class="field full" id="password-field"><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" required maxlength="128"></div>
+        </div>
+        <button id="auth-submit" class="button button-dark" type="submit">Sign in</button>
+      </form>
+      <p id="auth-message" role="status"></p>
+      <div class="auth-links" id="auth-links"><button type="button" class="button button-light" data-auth-mode="signup">Create account</button><button type="button" class="button button-outline" data-auth-mode="signin">Sign in</button><button type="button" class="button button-outline" data-auth-mode="reset">Forgot password?</button></div>
+    </div>
+  </dialog>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
