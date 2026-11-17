@@ -27,7 +27,7 @@ What stands between this and a publishable app:
 - [x] [D] Simulation code deleted (17 Nov). Its database tables are dropped by the pending migration below.
 - [x] [D] Work committed and pushed to the `payments` branch; the preview deploys from that branch. `main` is untouched as the fallback.
 - [x] [J] Migration `20261117180000_support_and_clawback.sql` applied to the development database (17 Nov). Verified on the preview: reviews, checkout switch, fee-inclusive pricing, audit trail, payout clawback; simulation tables removed.
-- [ ] [J] **Paste `supabase/migrations/20261117210000_accounts_and_emails.sql` into the Supabase SQL Editor and run it once.** It switches on account deletion, member suspension and the email queue. Then run `npm run test:orders:live` (three checks are skipped until it is applied).
+- [x] [J] Migration `20261117210000_accounts_and_emails.sql` applied to the development database (17 Nov). Verified on the preview: emails queued to the right person at each order step, suspension, account deletion (16 hosted checks pass).
 - [ ] [J] **Choose the support administrators:** set `ADMIN_EMAILS` on Render (and in local `.env`) to the sign-in email(s) allowed to open the Support screen, comma-separated. Until then the screen is off.
 - [ ] [J] Look over the `payments` branch and merge it into `main` when happy.
 
@@ -118,7 +118,7 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [x] Support screen for administrators named in `ADMIN_EMAILS`: orders needing a decision (release to seller or refund buyer), order history with the buyer–seller messages, reports queue, take a listing off sale, pause all new purchases. Every action requires a reason and is audited. Non-administrators get a plain "not found". Hosted test passed (`npm run test:orders:live`, 13 checks).
 - [x] Support can suspend or restore a member from an order's details: they cannot list, message, save or trade, and their listings come off sale; orders already under way continue. Database rules tested; hosted check waits for the pending migration.
 - [ ] [J] Named support owner, support mailbox, and a review cadence for reports.
-- [x] Account deletion from "My account": refused while an order is in progress; otherwise the profile, listings, photos, saved clubs and delivery addresses are removed, the sign-in email is scrubbed and sign-in blocked, the Stripe payout account is closed, and order records are kept. Messages stay visible to the other person as from a "Deleted member" — [J] confirm that with the privacy review. Hosted check waits for the pending migration.
+- [x] Account deletion from "My account": refused while an order is in progress; otherwise the profile, listings, photos, saved clubs and delivery addresses are removed, the sign-in email is scrubbed and sign-in blocked, the Stripe payout account is closed, and order records are kept. Messages stay visible to the other person as from a "Deleted member" — [J] confirm that with the privacy review. Hosted check passed.
 
 ## 7. Legal and policy [J] — get these reviewed; this list is not legal advice
 
