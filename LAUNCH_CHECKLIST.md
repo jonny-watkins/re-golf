@@ -122,7 +122,8 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 
 ## 7. Legal and policy [J] — get these reviewed; this list is not legal advice
 
-- [ ] Terms, privacy notice, buyer-protection/refund policy, prohibited items, counterfeit reporting.
+- [x] [D] Drafts written to match what the app actually does and linked in the site footer: `public/buyer-protection.html`, `public/terms.html`, `public/privacy.html`. Each carries a visible "draft for review" banner.
+- [ ] [J] Have the three drafts reviewed by a legal adviser and fill in the [bracketed] details (company, addresses, retention periods, liability wording, return postage). Remove the draft banners only then. Prohibited-items and counterfeit-reporting wording is in the terms; expand if the adviser recommends.
 - [ ] HMRC digital-platform reporting: UK platforms must collect and report seller details and earnings. Stripe onboarding collects most of the identity data; reporting remains Relofted's duty.
 - [ ] Online Safety Act: private messaging between users brings an illegal-content risk assessment duty.
 - [ ] ICO registration and a data-retention schedule (order records kept for tax purposes vs. profile deletion).
@@ -130,16 +131,18 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 
 ## 8. Production readiness [D]/[J]
 
+- [x] [D] Go-live pack: `GO_LIVE.md` (step-by-step runbook) and `supabase/production-setup.sql` (one paste builds a new production database; a test keeps it in step with the migrations).
 - [ ] [J] Domain; separate **production** Supabase project and Render service (paid plan — the free plan sleeps and would miss webhooks).
 - [ ] Remove the preview password gate for production; keep `noindex` off; tighten CSP.
 - [x] Unexpected server errors are logged with the route and stack trace.
 - [ ] Error monitoring service and alerting.
 - [ ] Database backups with one rehearsed restore.
-- [ ] Photo delivery: every image is proxied through the Node server with `no-store`. Fine for a preview, slow and costly in public. Move to short-lived signed URLs or private caching.
+- [x] Photos are cached privately in the viewer's browser for a day (a replaced photo gets a new address). Still served through the app server; move to signed storage links only if traffic makes it necessary.
 - [x] Search matches every word across name, brand and description ("Ping driver" now works).
-- [ ] Price and condition filters.
+- [x] Condition and maximum-price filters on browse, saved clubs and my listings.
 - [ ] Remove "Development preview" banners and example listings from the production build.
-- [ ] Accessibility and slow-network pass on mobile.
+- [x] Phone layout checked by screenshot at 390px: header, filters, listing card, policy pages. Orders show the item photo.
+- [ ] Full accessibility pass (keyboard-only use, screen reader, contrast) and a slow-network check.
 - [ ] Rate limiter is in-memory: fine for one instance, revisit before scaling out.
 
 ## 9. Pilot and launch [J]/[D]
