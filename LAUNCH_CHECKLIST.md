@@ -1,6 +1,6 @@
 # Relofted launch checklist
 
-Created 17 November 2026 from a full review of the code and of DEVELOPMENT_PLAN.md / RELEASE_PLAN.md.
+Created 17 November 2026 from a full review of the code and of the earlier plans (now in docs/archive).
 Goal: a publishable UK marketplace where the buyer's payment is held and released to the seller a few days after delivery (the Vinted model).
 
 This is the working list. The two plan files stay as background; where they disagree with this file, this file wins. Tick an item only when its check passes.
@@ -159,4 +159,3 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - Reserved/sold listings disappear from public reads, so their photos do too. Order pages will need a participant-read policy for the purchased item's main photo.
 - `scripts/test-checkout-live.ts` imports `playwright`, which is not in package.json.
 - Buyers and sellers can read Stripe reference IDs on their own orders if they query the database directly. Not secrets, but could be hidden with column grants.
-- DEVELOPMENT_PLAN.md Phase 1–2 checkboxes are stale; tidy when the plans are next edited.

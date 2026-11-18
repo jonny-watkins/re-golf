@@ -222,7 +222,7 @@ export function createApp(
     if (!configured) {
       res
         .status(503)
-        .json({ error: 'Accounts and saved listings are not connected yet. Follow SETUP.md to connect Supabase.' });
+        .json({ error: 'Accounts and saved listings are not connected yet. See the README to connect the database.' });
       return;
     }
     next();

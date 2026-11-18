@@ -33,7 +33,7 @@ const server = app.listen(config.port, config.host, () => {
   console.log(
     config.supabaseUrl
       ? 'Supabase configured. Apply the migration before using listings.'
-      : 'Setup needed: follow SETUP.md to connect accounts and saved listings.',
+      : 'Setup needed: see the README to connect accounts and saved listings.',
   );
 });
 
