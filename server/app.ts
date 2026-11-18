@@ -197,6 +197,8 @@ export function createApp(
             checkoutOpen: s.checkout_enabled,
             feeFixedPence: s.fee_fixed_pence,
             feeBps: s.fee_bps,
+            // Arrives with a later migration; no minimum until then.
+            feeMinPence: s.fee_min_pence ?? 0,
             deliveryPence: s.delivery_pence,
             holdHours: s.hold_hours,
           };

@@ -85,6 +85,8 @@ test('a reported problem is settled by refund, tracked return, withdrawal or sup
       await db.exec(await readFile(new URL(file, folder), 'utf8'));
     for (const id of [seller, buyer, other]) await db.query("insert into auth.users values($1,'{}',now())", [id]);
     await admin('select public.set_checkout_enabled(true)');
+    // The payout rule has its own test; here sellers do not need a payout account.
+    await admin('select public.set_require_payouts(false)');
 
     await t.test('the seller can refund straight away without asking for the item back', async () => {
       const order = await disputed();

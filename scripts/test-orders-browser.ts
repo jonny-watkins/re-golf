@@ -149,7 +149,18 @@ const refreshOrders = async (page: Page, text: RegExp) =>
     40,
   );
 
+// See test-orders-live.ts: the payout rule is switched off for this run, and the fee has a
+// minimum once migration 20261118130000 is applied.
+let payoutRule = false,
+  fee = 95;
+const gbp = (pence: number) => '£' + (pence / 100).toFixed(2);
+
 try {
+  {
+    const rule = await admin.rpc('set_require_payouts', { p_required: false });
+    payoutRule = !rule.error;
+    if (payoutRule) fee = Math.max(95, Number(rule.data.fee_min_pence));
+  }
   for (const name of ['seller', 'buyer']) {
     const email = `orders-browser-${name}-${randomUUID()}@example.com`,
       password = randomUUID() + 'Aa1!';
@@ -195,11 +206,18 @@ try {
   const card = buyerPage.locator('.listing').filter({ hasText: title });
   await card.locator('[data-listing]').click();
   await buyerPage.locator('#checkout-button').filter({ hasText: 'Buy now' }).click();
-  await buyerPage.locator('#checkout-button').filter({ hasText: 'Pay £11.90 securely' }).waitFor();
-  assert.match(
-    await buyerPage.locator('#price-breakdown').innerText(),
-    /Club price: £5\.00[\s\S]*Buyer protection fee: £0\.95[\s\S]*Tracked delivery: £5\.95[\s\S]*Total to pay: £11\.90/,
-  );
+  await buyerPage
+    .locator('#checkout-button')
+    .filter({ hasText: `Pay ${gbp(1095 + fee)} securely` })
+    .waitFor();
+  const breakdown = (await buyerPage.locator('#price-breakdown').innerText()).replace(/\s+/g, ' ');
+  for (const line of [
+    'Club price: £5.00',
+    `Buyer protection fee: ${gbp(fee)}`,
+    'Tracked delivery: £5.95',
+    `Total to pay: ${gbp(1095 + fee)}`,
+  ])
+    assert.ok(breakdown.includes(line), `${line} missing from: ${breakdown}`);
   await snap(buyerPage, 'price-breakdown');
   await buyerPage.locator('#checkout-button').click();
   await buyerPage.waitForURL(/checkout\.stripe\.com/, { timeout: 60_000 });
@@ -260,7 +278,7 @@ try {
     'delivery address saved from Stripe: ' + JSON.stringify(address),
   );
   const intent = await stripe.paymentIntents.retrieve(order.payment_ref);
-  assert.deepEqual([intent.status, intent.amount_received, intent.transfer_group], ['succeeded', 1190, order.id]);
+  assert.deepEqual([intent.status, intent.amount_received, intent.transfer_group], ['succeeded', 1095 + fee, order.id]);
   console.log(
     '   paid via',
     events.map(event => event.event_id.slice(0, 8) + '…').join(', '),
@@ -379,7 +397,7 @@ try {
     '   Stripe transfer',
     transfer.id.slice(0, 8) + '…',
     '£' + (transfer.amount / 100).toFixed(2),
-    'to the seller; platform keeps the £0.95 fee',
+    `to the seller; platform keeps the ${gbp(fee)} fee`,
   );
   await refreshOrders(
     sellerPage.url().startsWith(base)
@@ -410,6 +428,7 @@ try {
   process.exitCode = 1;
 } finally {
   await browser?.close();
+  if (payoutRule) await admin.rpc('set_require_payouts', { p_required: true });
   const ids = users.map(user => user.id);
   if (ids.length) {
     const orders = (await admin.from('orders').select('id,payment_ref,funds').in('seller_id', ids)).data || [];

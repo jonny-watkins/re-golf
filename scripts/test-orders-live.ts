@@ -143,7 +143,19 @@ async function reserve(buyer: User, listing: string) {
   return made.data.order as { id: string; total_pence: number };
 }
 
+// Migration 20261118130000 adds a minimum fee and the rule that a seller must finish payout setup
+// before their items can be bought. These checks sell from accounts without payouts, so the rule is
+// switched off for the run (and tested on its own), then switched back on at the end.
+let payoutRule = false,
+  minFee = 0;
+
 try {
+  {
+    const rule = await admin.rpc('set_require_payouts', { p_required: false });
+    payoutRule = !rule.error;
+    minFee = payoutRule ? Number(rule.data.fee_min_pence) : 0;
+    if (!payoutRule) console.log('NOTE minimum fee and payout rule not in this database yet');
+  }
   for (let i = 0; i < 5; i++) {
     const email = `orders-test-${randomUUID()}@example.com`,
       password = randomUUID() + 'Aa1!';
@@ -165,22 +177,43 @@ try {
   let listing = await newListing(seller);
   let order: { id: string; total_pence: number };
 
-  await check('quote shows item + £0.70 + 5% fee + delivery; seller and anonymous cannot buy', async () => {
-    const quote = await api(alice, '/api/orders/quote', { listing_id: listing });
-    assert.deepEqual(
-      [
-        quote.status,
-        quote.data.quote?.item_pence,
-        quote.data.quote?.fee_pence,
-        quote.data.quote?.delivery_pence,
-        quote.data.quote?.total_pence,
-      ],
-      [200, 1000, 120, 595, 1715],
-      JSON.stringify(quote.data),
-    );
-    assert.equal((await api(seller, '/api/orders/quote', { listing_id: listing })).status, 403);
-    assert.equal((await api(null, '/api/orders/quote', { listing_id: listing })).status, 401);
-  });
+  await check(
+    'quote shows item + fee (£0.70 + 5%, with a minimum) + delivery; seller and anonymous cannot buy',
+    async () => {
+      const fee = Math.max(minFee, 120);
+      const quote = await api(alice, '/api/orders/quote', { listing_id: listing });
+      assert.deepEqual(
+        [
+          quote.status,
+          quote.data.quote?.item_pence,
+          quote.data.quote?.fee_pence,
+          quote.data.quote?.delivery_pence,
+          quote.data.quote?.total_pence,
+        ],
+        [200, 1000, fee, 595, 1595 + fee],
+        JSON.stringify(quote.data),
+      );
+      assert.equal((await api(seller, '/api/orders/quote', { listing_id: listing })).status, 403);
+      assert.equal((await api(null, '/api/orders/quote', { listing_id: listing })).status, 401);
+    },
+  );
+
+  if (payoutRule)
+    await check('an item cannot be bought until its seller has finished payout setup', async () => {
+      await admin.rpc('set_require_payouts', { p_required: true });
+      try {
+        const quote = await api(alice, '/api/orders/quote', { listing_id: listing });
+        assert.deepEqual(
+          [quote.status, /setting up payments/.test(quote.data.error)],
+          [409, true],
+          JSON.stringify(quote.data),
+        );
+        const made = await api(alice, '/api/orders', { listing_id: listing, request_id: randomUUID() });
+        assert.equal(made.status, 409, JSON.stringify(made.data));
+      } finally {
+        await admin.rpc('set_require_payouts', { p_required: false });
+      }
+    });
 
   await check('browse filters: condition and maximum price; search finds brand words', async () => {
     const found = async (query: string) =>
@@ -798,6 +831,7 @@ try {
   console.log(`\nAll ${passed} hosted order checks passed.`);
 } finally {
   local?.close();
+  if (payoutRule) await admin.rpc('set_require_payouts', { p_required: true });
   // Refund anything still held by test orders, then remove every fixture.
   const ids = users.map(user => user.id);
   if (ids.length) {

@@ -28,6 +28,8 @@ What stands between this and a publishable app:
 - [x] [D] Work committed and pushed to the `payments` branch; the preview deploys from that branch. `main` is untouched as the fallback.
 - [x] [J] Migration `20261117180000_support_and_clawback.sql` applied to the development database (17 Nov). Verified on the preview: reviews, checkout switch, fee-inclusive pricing, audit trail, payout clawback; simulation tables removed.
 - [x] [J] Migration `20261117210000_accounts_and_emails.sql` applied to the development database (17 Nov). Verified on the preview: emails queued to the right person at each order step, suspension, account deletion (16 hosted checks pass).
+- [ ] [J] **Apply migration `20261118130000_minimum_fee_and_payout_rule.sql`** to the development database (paste into the Supabase SQL Editor). The code is already written to work before and after it: until it is applied there is no minimum fee and no payout rule. Database rules tested (`tests/pricing.test.ts`); the hosted checks pick the new rules up automatically once it is applied.
+- [ ] [D] After that migration: re-run `npm run test:orders:live` and `npm run test:orders:browser`, and show on the listing page that an item cannot be bought yet (rather than only on pressing "Buy now").
 - [ ] [J] **Choose the support administrators:** set `ADMIN_EMAILS` on Render (and in local `.env`) to the sign-in email(s) allowed to open the Support screen, comma-separated. Until then the screen is off.
 - [ ] [J] Look over the `payments` branch and merge it into `main` when happy.
 
@@ -42,7 +44,8 @@ Decided 17 November 2026:
 
 Chosen by default during the build — say if any should change:
 
-- Sellers can sell before setting up payouts; their money waits until they finish Stripe onboarding. (Alternative: block "Buy" until the seller has onboarded.) Stripe limits how long funds can be held, so chase sellers who do not onboard.
+- **Changed 18 Nov:** an item can only be bought once its seller has finished Stripe payout setup, so money is never held for someone who cannot be paid. Sellers can still list first and are prompted to set up payouts straight after. (Database setting `require_payouts`; previously sellers could sell first and their money waited.)
+- **Added 18 Nov:** the buyer fee has a minimum of £3 (`fee_min_pence` setting). Below about £46 the £0.70 + 5% formula gives less than that, and card processing plus payout costs would eat most of it.
 - Refunds are for the full amount including the buyer fee.
 - The seller's view of the delivery address closes once the order completes.
 
@@ -100,10 +103,10 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [ ] Turn the tracking number into a carrier link; optionally confirm delivery from carrier tracking instead of the buyer.
 - [x] Order deadlines run inside the web server (no paid scheduler needed). Photo cleanup still needs one, or can be moved in-process the same way.
 - [x] Buyer can report a problem, which freezes payment.
-- [x] Settling a reported problem (18 Nov): the seller refunds straight away or asks for the item back at an address they give; the buyer has 5 days (`return_days` setting) to post it with tracking or the seller is paid; the buyer is refunded when the seller confirms it is back, or automatically 10 days after it was posted; the buyer can withdraw the problem; either side can ask support to decide, which stops the automatic deadlines. Card disputes stay support-only. Database rules tested (`tests/returns.test.ts`); emails and policy drafts updated. Hosted check passed 18 Nov against the development database and Stripe sandbox (tracked return refunded through Stripe, missed return pays the seller, asking support to decide). **Not yet clicked through in a browser; the preview still runs the previous build until this is committed and deployed.**
+- [x] Settling a reported problem (18 Nov): the seller refunds straight away or asks for the item back at an address they give; the buyer has 5 days (`return_days` setting) to post it with tracking or the seller is paid; the buyer is refunded when the seller confirms it is back, or automatically 10 days after it was posted; the buyer can withdraw the problem; either side can ask support to decide, which stops the automatic deadlines. Card disputes stay support-only. Database rules tested (`tests/returns.test.ts`); emails and policy drafts updated. Hosted check passed 18 Nov against the development database and Stripe sandbox (tracked return refunded through Stripe, missed return pays the seller, asking support to decide).
 - [x] [J] Migration `20261118100000_order_returns.sql` applied to the development database (18 Nov).
 - [x] [D] Return flow added to `npm run test:orders:live` (18/18 pass).
-- [ ] [D] Deploy to the preview and click through the return flow in the browser as buyer and seller.
+- [x] [D] Return flow clicked through in a real (headless Edge) browser on the preview as buyer and seller (18 Nov): seller asks for the item back, buyer sees the return address and deadline and posts with tracking, seller confirms, buyer refunded in full through Stripe. `npm run test:returns:browser`.
 - [ ] [J] Return postage is paid by the buyer in every case (Vinted's rule). Confirm with the policy review, especially for items not as described.
 - [ ] Still to do on problems: photos with the report, partial refunds, and confirming the return from carrier tracking.
 - [ ] Delete delivery addresses a set time after completion (retention).

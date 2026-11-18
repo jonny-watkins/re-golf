@@ -108,8 +108,9 @@ let activeCondition = '';
 let maxPrice = '';
 const support = setupAdmin(api, () => session?.user.id);
 // Buyer fee settings from the server, used to show the price a buyer will actually pay for the item.
-let pricing: { feeFixedPence: number; feeBps: number; deliveryPence: number } | null = null;
-const withFee = (pence: number) => pence + pricing!.feeFixedPence + Math.round((pence * pricing!.feeBps) / 10000);
+let pricing: { feeFixedPence: number; feeBps: number; feeMinPence?: number; deliveryPence: number } | null = null;
+const withFee = (pence: number) =>
+  pence + Math.max(pricing!.feeMinPence || 0, pricing!.feeFixedPence + Math.round((pence * pricing!.feeBps) / 10000));
 let quotedListing = '';
 const holdNote =
   'Relofted holds your payment until you have received the item and had time to check it. The seller is paid only after that.';
@@ -746,6 +747,15 @@ sellForm.addEventListener('submit', async event => {
     renderFilters();
     await loadListings();
     el('market').scrollIntoView({ behavior: 'smooth' });
+    // Buyers can only buy from sellers who can be paid, so prompt for payout setup straight away.
+    if (orders.enabled) {
+      const state = await api<{ payouts: { enabled: boolean } }>('/api/orders').catch(() => null);
+      if (state && !state.payouts.enabled)
+        message(
+          'market-message',
+          'Your listing is saved. Buyers cannot buy it until you set up payouts: open Orders and choose "Set up payouts".',
+        );
+    }
   } catch (error) {
     message('sell-message', errorMessage(error));
   } finally {
@@ -853,7 +863,7 @@ async function initialise() {
       photosEnabled: boolean;
       listingDetailsEnabled: boolean;
       paymentsEnabled?: boolean;
-      pricing?: { feeFixedPence: number; feeBps: number; deliveryPence: number } | null;
+      pricing?: { feeFixedPence: number; feeBps: number; feeMinPence?: number; deliveryPence: number } | null;
     }>('/api/config');
     orders.configure(Boolean(config.paymentsEnabled));
     pricing = config.pricing || null;

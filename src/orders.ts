@@ -377,7 +377,7 @@ export function setupOrders(
         'p',
         selling.length
           ? 'Set up payouts to receive the money from your sales. Your payments are held safely until you do.'
-          : 'Selling? Set up payouts so you can be paid when an order completes.',
+          : 'Selling? Set up payouts first. Buyers can only buy your items once you can be paid.',
       );
       button(
         payouts,
