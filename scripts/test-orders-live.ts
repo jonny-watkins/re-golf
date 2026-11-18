@@ -240,7 +240,10 @@ try {
       'reserved listing must leave public browsing',
     );
     const session = await stripe.checkout.sessions.retrieve((await dbOrder(order.id)).checkout_ref);
-    assert.deepEqual([session.amount_total, session.currency, session.status], [1715, 'gbp', 'open']);
+    assert.deepEqual(
+      [session.amount_total, session.currency, session.status],
+      [1595 + Math.max(minFee, 120), 'gbp', 'open'],
+    );
   });
 
   await check('orders are private to their buyer and seller; seller cannot change a reserved listing', async () => {

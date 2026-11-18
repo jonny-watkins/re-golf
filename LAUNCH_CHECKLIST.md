@@ -28,8 +28,8 @@ What stands between this and a publishable app:
 - [x] [D] Work committed and pushed to the `payments` branch; the preview deploys from that branch. `main` is untouched as the fallback.
 - [x] [J] Migration `20261117180000_support_and_clawback.sql` applied to the development database (17 Nov). Verified on the preview: reviews, checkout switch, fee-inclusive pricing, audit trail, payout clawback; simulation tables removed.
 - [x] [J] Migration `20261117210000_accounts_and_emails.sql` applied to the development database (17 Nov). Verified on the preview: emails queued to the right person at each order step, suspension, account deletion (16 hosted checks pass).
-- [ ] [J] **Apply migration `20261118130000_minimum_fee_and_payout_rule.sql`** to the development database (paste into the Supabase SQL Editor). The code is already written to work before and after it: until it is applied there is no minimum fee and no payout rule. Database rules tested (`tests/pricing.test.ts`); the hosted checks pick the new rules up automatically once it is applied.
-- [ ] [D] After that migration: re-run `npm run test:orders:live` and `npm run test:orders:browser`, and show on the listing page that an item cannot be bought yet (rather than only on pressing "Buy now").
+- [x] [J] Migration `20261118130000_minimum_fee_and_payout_rule.sql` applied to the development database (18 Nov). Verified on the preview: £3 minimum fee charged through Stripe, an item cannot be bought until its seller has finished payout setup (19 hosted checks and the browser purchase pass).
+- [ ] [D] Show on the listing page that an item cannot be bought yet (rather than only on pressing "Buy now").
 - [ ] [J] **Choose the support administrators:** set `ADMIN_EMAILS` on Render (and in local `.env`) to the sign-in email(s) allowed to open the Support screen, comma-separated. Until then the screen is off.
 - [ ] [J] Look over the `payments` branch and merge it into `main` when happy.
 
