@@ -12,6 +12,10 @@ type Order = {
   tracking: string | null;
   created_at: string;
   updated_at: string;
+  return_by?: string | null;
+  return_tracking?: string | null;
+  return_posted_at?: string | null;
+  return_escalated_at?: string | null;
 };
 type Report = {
   id: string;
@@ -104,6 +108,7 @@ export function setupAdmin(api: Api, user: () => string | undefined) {
     const data = await api<Detail>(`/api/admin/orders/${order.id}`);
     const box = add(row, 'div', '', 'support-detail');
     add(box, 'p', `Order ${order.id}`);
+    if (data.order.return_address) add(box, 'p', `Return to seller at: ${data.order.return_address}`);
     if (data.address)
       add(
         box,
@@ -154,6 +159,18 @@ export function setupAdmin(api: Api, user: () => string | undefined) {
     );
     if (order.issue) add(row, 'p', `Reported problem: ${order.issue}`);
     if (order.tracking) add(row, 'p', `Tracking: ${order.tracking}`, 'order-amounts');
+    if (order.status === 'disputed') {
+      const steps = [
+        order.return_escalated_at
+          ? 'Support was asked to decide (reason in the history under View details).'
+          : 'Buyer and seller are settling this themselves; decide only if asked or if it stalls.',
+      ];
+      if (order.return_posted_at)
+        steps.push(`Buyer posted the item back ${when(order.return_posted_at)}: ${order.return_tracking}.`);
+      else if (order.return_by)
+        steps.push(`Seller asked for the item back; the buyer has until ${when(order.return_by)} to post it.`);
+      add(row, 'p', steps.join(' '));
+    }
     const actions = add(row, 'div', '', 'order-actions');
     button(actions, 'View details', () => showDetail(row, order));
     const decide = (decision: 'release' | 'refund', question: string) => async () => {

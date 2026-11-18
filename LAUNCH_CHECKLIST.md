@@ -100,7 +100,12 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [ ] Turn the tracking number into a carrier link; optionally confirm delivery from carrier tracking instead of the buyer.
 - [x] Order deadlines run inside the web server (no paid scheduler needed). Photo cleanup still needs one, or can be moved in-process the same way.
 - [x] Buyer can report a problem, which freezes payment.
-- [ ] Richer issue handling: photos, seller response, return postage, partial refunds.
+- [x] Settling a reported problem (18 Nov): the seller refunds straight away or asks for the item back at an address they give; the buyer has 5 days (`return_days` setting) to post it with tracking or the seller is paid; the buyer is refunded when the seller confirms it is back, or automatically 10 days after it was posted; the buyer can withdraw the problem; either side can ask support to decide, which stops the automatic deadlines. Card disputes stay support-only. Database rules tested (`tests/returns.test.ts`); emails and policy drafts updated. Hosted check passed 18 Nov against the development database and Stripe sandbox (tracked return refunded through Stripe, missed return pays the seller, asking support to decide). **Not yet clicked through in a browser; the preview still runs the previous build until this is committed and deployed.**
+- [x] [J] Migration `20261118100000_order_returns.sql` applied to the development database (18 Nov).
+- [x] [D] Return flow added to `npm run test:orders:live` (18/18 pass).
+- [ ] [D] Deploy to the preview and click through the return flow in the browser as buyer and seller.
+- [ ] [J] Return postage is paid by the buyer in every case (Vinted's rule). Confirm with the policy review, especially for items not as described.
+- [ ] Still to do on problems: photos with the report, partial refunds, and confirming the return from carrier tracking.
 - [ ] Delete delivery addresses a set time after completion (retention).
 - [x] Reviews: buyer and seller can each leave one rating and comment after an order completes; the seller's average shows on their listings. Hosted check passed.
 

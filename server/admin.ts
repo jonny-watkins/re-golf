@@ -39,16 +39,14 @@ export function adminRoutes(
 
   app.get('/api/admin/overview', async (req, res) => {
     await adminOnly(req);
-    const orders = must(
-      await admin
-        .from('orders')
-        .select(
-          'id,title,buyer_id,seller_id,total_pence,item_pence,delivery_pence,status,funds,issue,tracking,created_at,updated_at,release_at,dispatch_by',
-        )
-        .order('updated_at', { ascending: false })
-        .limit(100),
-      'Orders',
-    ) as { buyer_id: string; seller_id: string }[];
+    const columns =
+      'id,title,buyer_id,seller_id,total_pence,item_pence,delivery_pence,status,funds,issue,tracking,created_at,updated_at,release_at,dispatch_by';
+    const list = (select: string) =>
+      admin.from('orders').select(select).order('updated_at', { ascending: false }).limit(100);
+    // The return columns arrive with a later migration; until then orders load without them.
+    let found = await list(columns + ',return_by,return_tracking,return_posted_at,return_escalated_at');
+    if (found.error?.code === '42703') found = await list(columns);
+    const orders = must(found, 'Orders') as unknown as { buyer_id: string; seller_id: string }[];
     const reports = must(
       await admin
         .from('conversation_reports')

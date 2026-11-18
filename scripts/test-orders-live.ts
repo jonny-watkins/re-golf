@@ -572,6 +572,76 @@ try {
       );
     },
   );
+  // The next check needs migration 20261118100000_order_returns.sql.
+  if ((await admin.from('orders').select('return_by').limit(1)).error)
+    console.log('SKIP returns: apply 20261118100000_order_returns.sql first');
+  else
+    await check('reported problem settled by a tracked return, a missed return, or the seller refunding', async () => {
+      // Runs this build locally against the same database and Stripe sandbox, as the support check does.
+      const origin = 'http://127.0.0.1:' + (local!.address() as AddressInfo).port;
+      const call = async (user: User, path: string, body?: unknown) => {
+        const response = await fetch(origin + path, {
+          method: body === undefined ? 'GET' : 'POST',
+          headers: { Authorization: 'Bearer ' + user.token, 'Content-Type': 'application/json' },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
+        return { status: response.status, data: (await response.json()) as any };
+      };
+      const problem = async (buyer: User, price: number) => {
+        const item = await newListing(seller, price);
+        const made = await reserve(buyer, item);
+        const payment = await pay(made);
+        await api(seller, `/api/orders/${made.id}/dispatch`, { text: 'DPD 15501234567890' });
+        await api(buyer, `/api/orders/${made.id}/report_issue`, { text: 'Automated test: return flow' });
+        return { ...made, item, intent: payment.intent };
+      };
+      const address = 'Automated Seller, 1 Test Road, Leeds, LS1 1AA';
+      // 1. Tracked return, then the seller confirms it is back: the buyer is refunded through Stripe.
+      const first = await problem(bob, 1300);
+      assert.equal((await call(bob, `/api/orders/${first.id}/request_return`, { text: address })).status, 403);
+      assert.equal((await call(bob, `/api/orders/${first.id}/return_posted`, { text: 'Evri H01' })).status, 409);
+      const asked = await call(seller, `/api/orders/${first.id}/request_return`, { text: address });
+      assert.deepEqual([asked.status, asked.data.order?.return_address], [200, address], JSON.stringify(asked.data));
+      const seen = (await call(bob, '/api/orders')).data.orders.find((found: any) => found.id === first.id);
+      assert.deepEqual([seen?.return_address, Boolean(seen?.return_by)], [address, true]);
+      assert.equal((await call(alice, `/api/orders/${first.id}/return_posted`, { text: 'Evri H0123456' })).status, 404);
+      const posted = await call(bob, `/api/orders/${first.id}/return_posted`, { text: 'Evri H0123456789012345' });
+      assert.deepEqual([posted.status, posted.data.order?.funds], [200, 'held']);
+      assert.equal((await call(bob, `/api/orders/${first.id}/withdraw`, {})).status, 409);
+      const back = await call(seller, `/api/orders/${first.id}/refund`, {});
+      assert.deepEqual([back.data.order?.status, back.data.order?.funds], ['cancelled', 'refund_due']);
+      assert.ok((await settleOrders(admin, payments)).refunded >= 1);
+      const row = await dbOrder(first.id);
+      assert.deepEqual([row.funds, row.return_address], ['refunded', null]);
+      assert.equal((await stripe.refunds.list({ payment_intent: first.intent })).data[0]?.amount, first.total_pence);
+      assert.equal(await listingStatus(first.item), 'archived');
+      // 2. The buyer does not post it back in time: the problem closes and the seller is due the money.
+      const second = await problem(alice, 1400);
+      await call(seller, `/api/orders/${second.id}/request_return`, { text: address });
+      await admin
+        .from('orders')
+        .update({ return_by: new Date(Date.now() - 60_000).toISOString() })
+        .eq('id', second.id);
+      const swept = await settleOrders(admin, payments);
+      assert.ok(swept.return_not_posted >= 1, JSON.stringify(swept));
+      const closed = await dbOrder(second.id);
+      assert.equal(closed.status, 'completed');
+      assert.ok(['release_due', 'released'].includes(closed.funds), closed.funds);
+      // 3. Asking support to decide is recorded; the seller can still simply refund.
+      const third = await problem(bob, 1250);
+      assert.equal((await call(bob, `/api/orders/${third.id}/escalate`, {})).status, 400);
+      const raised = await call(bob, `/api/orders/${third.id}/escalate`, { text: 'Automated test: please decide' });
+      assert.ok(raised.data.order?.return_escalated_at, JSON.stringify(raised.data));
+      assert.equal((await call(seller, `/api/orders/${third.id}/request_return`, { text: address })).status, 409);
+      assert.equal((await call(seller, `/api/orders/${third.id}/refund`, {})).data.order?.funds, 'refund_due');
+      assert.ok((await settleOrders(admin, payments)).refunded >= 1);
+      const queued = (await admin.from('email_outbox').select('template').eq('data->>order_id', first.id)).data || [];
+      for (const template of ['return_requested', 'return_posted', 'order_refunding'])
+        assert.ok(
+          queued.some(email => email.template === template),
+          `${template} email queued`,
+        );
+    });
   // The next checks need migration 20261117210000_accounts_and_emails.sql.
   const accountsReady = !(await admin.from('profiles').select('suspended_at').limit(1)).error;
   if (!accountsReady)

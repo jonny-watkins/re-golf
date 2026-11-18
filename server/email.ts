@@ -76,9 +76,28 @@ export function renderEmail(
       ]);
     case 'order_issue':
       return wrap(`The buyer reported a problem with ${title}`, [
-        `The buyer has reported a problem with ${title}. Payment is paused while Relofted support reviews it.`,
-        `You can reply to the buyer in Messages. Support will be in touch if they need anything from you.`,
+        `The buyer has reported a problem with ${title}. Payment is paused until it is settled.`,
+        `On your Orders screen you can refund the buyer, or ask for the item back first: you are not asked to refund until it has been returned. You can talk to the buyer in Messages, and ask Relofted to decide if you cannot agree.`,
         `Your sale: ${orders}`,
+      ]);
+    case 'return_requested':
+      return wrap(`Send ${title} back by ${day(data.return_by)}`, [
+        `The seller has asked for ${title} to be returned before you are refunded.`,
+        `Post it with a tracked service by ${day(data.return_by)} to the address on your Orders screen, then enter the carrier and tracking number there. Return postage is paid by you.`,
+        `If it is not marked as posted by then, the problem is closed and the seller is paid.`,
+        `Return address and next steps: ${orders}`,
+      ]);
+    case 'return_posted':
+      return wrap(`${title} is on its way back to you`, [
+        `The buyer has posted ${title} back to you.`,
+        `Tracking: ${data.return_tracking}`,
+        `When it arrives, check it and press "Item received back" on your Orders screen so the buyer is refunded. If it does not arrive, or is not what you sent, ask Relofted to decide instead. If you do neither, the buyer is refunded automatically once the parcel has had time to arrive.`,
+        `Your sale: ${orders}`,
+      ]);
+    case 'return_expired':
+      return wrap(`Problem closed: ${title}`, [
+        `${title} was not marked as posted back by ${day(data.return_by)}, so the problem has been closed and the seller has been paid.`,
+        `Your order: ${orders}`,
       ]);
     case 'order_refunding':
       return wrap(`Your refund for ${title} is on its way`, [

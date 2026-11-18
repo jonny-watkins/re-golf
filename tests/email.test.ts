@@ -14,6 +14,8 @@ const data = {
   dispatch_by: '2026-11-22T15:36:00Z',
   release_at: '2026-11-24T10:00:00Z',
   conversation_id: 'c-1',
+  return_by: '2026-11-27T10:00:00Z',
+  return_tracking: 'Evri H00ABC123456',
 };
 const templates = [
   'order_paid',
@@ -24,6 +26,9 @@ const templates = [
   'order_completed',
   'order_paid_out',
   'order_issue',
+  'return_requested',
+  'return_posted',
+  'return_expired',
   'order_refunding',
   'order_refunded',
   'order_cancelled',
@@ -45,6 +50,8 @@ test('every queued template renders a subject, the item, and a link back to the 
   assert.match(sold.text, /\?order=o-1/);
   assert.match(renderEmail('order_paid', data, origin)!.text, /You paid £111\.65/);
   assert.match(renderEmail('order_posted', data, origin)!.text, /Tracking: Royal Mail RM123456789GB/);
+  assert.match(renderEmail('return_requested', data, origin)!.subject, /back by Friday 27 November/);
+  assert.match(renderEmail('return_posted', data, origin)!.text, /Tracking: Evri H00ABC123456/);
 });
 
 test('email settings are all-or-nothing', () => {

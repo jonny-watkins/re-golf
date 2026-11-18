@@ -16,6 +16,11 @@ type Order = {
   release_at: string | null;
   issue: string | null;
   created_at: string;
+  return_address?: string | null;
+  return_by?: string | null;
+  return_tracking?: string | null;
+  return_posted_at?: string | null;
+  return_escalated_at?: string | null;
 };
 type Address = { order_id: string; name: string; line1: string; line2: string | null; city: string; postcode: string };
 type Quote = {
@@ -96,6 +101,42 @@ export function setupOrders(
     await load();
   };
 
+  /** A button that first reveals a text box, then sends what was typed with the action. */
+  function prompted(
+    parent: HTMLElement,
+    order: Order,
+    action: string,
+    label: string,
+    placeholder: string,
+    minLength: number,
+    open = false,
+  ) {
+    const input = add(parent, 'input');
+    input.placeholder = placeholder;
+    input.maxLength = 300;
+    input.hidden = !open;
+    input.setAttribute('aria-label', placeholder);
+    button(
+      parent,
+      label,
+      async () => {
+        if (input.hidden) {
+          input.hidden = false;
+          input.focus();
+          status(`${placeholder}, then press "${label}" again.`);
+          return;
+        }
+        if (input.value.trim().length < minLength) {
+          status(`${placeholder} first.`);
+          input.focus();
+          return;
+        }
+        await act(order, action, input.value.trim())();
+      },
+      open,
+    );
+  }
+
   function describe(order: Order, buying: boolean, payoutsEnabled: boolean) {
     const expired = order.status === 'awaiting_payment' && Date.parse(order.expires_at) <= Date.now();
     if (expired || order.status === 'expired')
@@ -120,7 +161,19 @@ export function setupOrders(
           ? `Received. Check your item: the seller is paid on ${when(order.release_at!)} unless you report a problem first.`
           : `Delivered. Your payment is released on ${when(order.release_at!)} unless the buyer reports a problem.`;
       case 'disputed':
-        return 'A problem was reported. The payment is frozen while Relofted support reviews it.';
+        if (order.return_escalated_at)
+          return 'Relofted support has been asked to decide. The payment stays frozen until they do.';
+        if (order.return_posted_at)
+          return buying
+            ? 'You have posted the item back. You are refunded in full when the seller confirms it has arrived, or automatically if they do not respond once it has had time to arrive.'
+            : 'The buyer has posted the item back. When it arrives, check it and confirm below so the buyer is refunded. If it does not arrive or is not what you sent, ask Relofted to decide. If you do neither, the buyer is refunded automatically.';
+        if (order.return_by)
+          return buying
+            ? `The seller has asked for the item back. Post it to the return address below with a tracked service by ${when(order.return_by)} and enter the tracking number. Return postage is paid by you. If you do not, the seller is paid.`
+            : `You asked for the item back. The buyer must post it with tracking by ${when(order.return_by)}, or the problem is closed and you are paid.`;
+        return buying
+          ? 'You reported a problem, so the payment is frozen. The seller can refund you or ask for the item back first. If you cannot agree, ask Relofted to decide.'
+          : 'The buyer reported a problem, so the payment is frozen. Refund the buyer, or ask for the item back first. If you cannot agree, ask Relofted to decide.';
       case 'completed':
         if (buying) return 'Complete. Thank you for buying on Relofted.';
         if (order.funds === 'released') return 'Complete. Your payment has been sent to your payout account.';
@@ -168,6 +221,8 @@ export function setupOrders(
     );
     if (order.tracking) add(row, 'p', `Tracking: ${order.tracking}`);
     if (order.issue) add(row, 'p', `Reported problem: ${order.issue}`);
+    if (order.return_address) add(row, 'p', `${buying ? 'Return to' : 'Your return address'}: ${order.return_address}`);
+    if (order.return_tracking) add(row, 'p', `Return tracking: ${order.return_tracking}`);
     if (address)
       add(
         row,
@@ -232,6 +287,40 @@ export function setupOrders(
         }
         await act(order, 'report_issue', input.value.trim())();
       });
+    }
+    // Settling a reported problem. Card disputes and stopped payouts are support-only; the server refuses these there.
+    if (order.status === 'disputed' && order.funds === 'held' && order.return_escalated_at !== undefined) {
+      const decided = Boolean(order.return_escalated_at);
+      if (buying) {
+        if (order.return_by && !order.return_posted_at)
+          prompted(actions, order, 'return_posted', 'I have posted it back', 'Carrier and tracking number', 6, true);
+        if (!order.return_posted_at)
+          button(actions, 'Withdraw the problem and pay the seller', async () => {
+            if (confirm('Withdraw the problem? The seller will be paid and this cannot be undone.'))
+              await act(order, 'withdraw')();
+          });
+      } else {
+        button(
+          actions,
+          order.return_posted_at ? 'Item received back: refund the buyer' : 'Refund the buyer',
+          async () => {
+            if (confirm(`Refund ${money(order.total_pence)} to the buyer? This cannot be undone.`))
+              await act(order, 'refund')();
+          },
+          Boolean(order.return_posted_at),
+        );
+        if (!order.return_by && !decided)
+          prompted(
+            actions,
+            order,
+            'request_return',
+            'Ask for the item back',
+            'Name and full address to send it back to',
+            10,
+          );
+      }
+      if (!decided)
+        prompted(actions, order, 'escalate', 'Ask Relofted to decide', 'What do you need Relofted to decide?', 1);
     }
     if (canReview) {
       const rating = add(actions, 'select');

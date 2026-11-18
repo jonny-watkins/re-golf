@@ -8,6 +8,9 @@ import { must } from './db.js';
 type Authenticate = (req: Request) => Promise<{ db: SupabaseClient; user: User }>;
 const orderColumns =
   'id,listing_id,buyer_id,seller_id,title,item_pence,fee_pence,delivery_pence,total_pence,status,funds,expires_at,paid_at,dispatch_by,dispatched_at,tracking,delivered_at,release_at,completed_at,issue,created_at';
+const returnColumns = ',return_address,return_by,return_tracking,return_posted_at,return_escalated_at';
+// Settling a reported problem: these go to order_return, the rest to order_action.
+const returnActions = ['withdraw', 'refund', 'request_return', 'return_posted', 'escalate'];
 
 // The database functions raise short, user-safe messages with these codes.
 const statusByCode: Record<string, number> = {
@@ -248,9 +251,12 @@ export function orderRoutes(
   }
   app.get('/api/orders', async (req, res) => {
     const { db, user } = await authenticate(req);
-    const orders = check(
-      await db.from('orders').select(orderColumns).order('created_at', { ascending: false }).limit(50),
-    ) as { id: string }[];
+    const list = (columns: string) =>
+      db.from('orders').select(columns).order('created_at', { ascending: false }).limit(50);
+    // The return columns arrive with a later migration; until then orders load without them.
+    let found = await list(orderColumns + returnColumns);
+    if (found.error?.code === '42703') found = await list(orderColumns);
+    const orders = check(found) as unknown as { id: string }[];
     // Row-level security returns an address only to the buyer, or to the seller while they need to post.
     const addresses = orders.length
       ? check(
@@ -361,15 +367,21 @@ export function orderRoutes(
     const { db } = await authenticate(req);
     const id = z.uuid().parse(req.params.id);
     const action = z
-      .enum(['cancel', 'dispatch', 'confirm_delivery', 'accept', 'report_issue'])
+      .enum(['cancel', 'dispatch', 'confirm_delivery', 'accept', 'report_issue', ...returnActions])
       .parse(req.params.action);
     const { text } = z
       .object({ text: z.string().trim().max(2000).optional() })
       .strict()
       .parse(req.body);
-    const order = check(
-      await db.rpc('order_action', { p_action: action, p_order: id, p_text: text ?? null }),
-    ) as OrderRow;
+    const settling = returnActions.includes(action);
+    const done = await db.rpc(settling ? 'order_return' : 'order_action', {
+      p_action: action,
+      p_order: id,
+      p_text: text ?? null,
+    });
+    if (settling && done.error && ['PGRST202', '42883'].includes(done.error.code || ''))
+      throw new HttpError(503, 'Returns are not available yet.');
+    const order = check(done) as OrderRow;
     if (action === 'cancel' && order.checkout_ref) {
       // Best effort. If the buyer still pays, the late-payment rules revive or refund the order.
       try {
