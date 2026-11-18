@@ -14,7 +14,7 @@ import { readConfig } from '../server/config.js';
 const config = readConfig(process.env);
 assert.equal(process.env.TEST_PROJECT, new URL(config.supabaseUrl).hostname.split('.')[0]);
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
-const admin = createClient(config.supabaseUrl, config.storageSecret, options);
+const admin = createClient(config.supabaseUrl, config.secretKey, options);
 const users: { id: string; email: string; password: string; token: string; client: ReturnType<typeof createClient> }[] =
   [];
 const listingIds: string[] = [],

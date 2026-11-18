@@ -15,7 +15,7 @@ import { readConfig } from '../server/config.js';
 const config = readConfig(process.env);
 assert.equal(process.env.TEST_PROJECT, new URL(config.supabaseUrl).hostname.split('.')[0]);
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
-const admin = createClient(config.supabaseUrl, config.storageSecret, options);
+const admin = createClient(config.supabaseUrl, config.secretKey, options);
 const client = createClient(config.supabaseUrl, config.publishableKey, options);
 const app = createApp(config);
 app.use(express.static(resolve('dist/client')));

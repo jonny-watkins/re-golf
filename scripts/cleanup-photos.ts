@@ -4,7 +4,7 @@ import { readCleanupConfig } from '../server/cleanup-config.js';
 import { cleanupPhotos } from '../server/photo-cleanup.js';
 
 const config = readCleanupConfig(process.env);
-const db = createClient(config.supabaseUrl, config.storageSecret, {
+const db = createClient(config.supabaseUrl, config.secretKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const count = await cleanupPhotos(db);

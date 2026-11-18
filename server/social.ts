@@ -2,26 +2,16 @@ import type { Express, Request } from 'express';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { searchFilters } from './search.js';
+import { HttpError } from './errors.js';
 
-export class SocialError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
 function check(error: { code?: string } | null) {
   if (!error) return;
-  if (error.code === 'P0001') throw new SocialError(429, 'Please wait before sending more messages or reports.');
+  if (error.code === 'P0001') throw new HttpError(429, 'Please wait before sending more messages or reports.');
   if (error.code === '42501')
-    throw new SocialError(
-      403,
-      'This action is unavailable. The conversation may be blocked or the listing unavailable.',
-    );
+    throw new HttpError(403, 'This action is unavailable. The conversation may be blocked or the listing unavailable.');
   if (error.code === '23505')
-    throw new SocialError(409, 'This item has already been saved or reported. Refresh to see it.');
-  throw new SocialError(503, 'Favourites or messages could not be loaded or saved. Please try again.');
+    throw new HttpError(409, 'This item has already been saved or reported. Refresh to see it.');
+  throw new HttpError(503, 'Favourites or messages could not be loaded or saved. Please try again.');
 }
 const pageInput = z.object({ page: z.coerce.number().int().min(1).max(10000).default(1) }).strict();
 const conversationColumns = 'id,listing_id,buyer_id,seller_id,listing_title,created_at';
@@ -127,7 +117,7 @@ export function socialRoutes(
       .maybeSingle();
     check(listing.error);
     if (!listing.data || listing.data.seller_id === user.id)
-      throw new SocialError(404, 'Choose an active listing from another seller.');
+      throw new HttpError(404, 'Choose an active listing from another seller.');
     const result = await db
       .from('conversations')
       .insert({ listing_id, buyer_id: user.id, seller_id: listing.data.seller_id })
@@ -152,7 +142,7 @@ export function socialRoutes(
     const id = z.uuid().parse(req.params.id);
     const { data, error } = await db.from('conversations').select(conversationColumns).eq('id', id).maybeSingle();
     check(error);
-    if (!data) throw new SocialError(404, 'Conversation not found.');
+    if (!data) throw new HttpError(404, 'Conversation not found.');
     return { db, user, data, other: data.buyer_id === user.id ? data.seller_id : data.buyer_id };
   }
   app.get('/api/conversations/:id/messages', async (req, res) => {

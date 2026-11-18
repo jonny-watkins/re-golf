@@ -1,17 +1,10 @@
 import type { Express, Request } from 'express';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { SocialError } from './social.js';
+import { HttpError } from './errors.js';
+import { missing, must, type Result } from './db.js';
 
 type Authenticate = (req: Request) => Promise<{ db: SupabaseClient; user: User }>;
-type Result<T> = { data: T; error: { code?: string; message?: string } | null };
-function must<T>(result: Result<T>, what: string): T {
-  if (result.error) throw new Error(`${what} failed: ${result.error.code || ''}`);
-  return result.data;
-}
-/** True when a database function or table from a not-yet-applied migration is missing. */
-const missing = (error: { code?: string } | null) =>
-  Boolean(error && ['PGRST202', 'PGRST205', '42883', '42P01'].includes(error.code || ''));
 
 /**
  * Support tools. Administrators are named in ADMIN_EMAILS on the server; every route
@@ -29,7 +22,7 @@ export function adminRoutes(
   const isAdmin = (user: User) => Boolean(user.email && adminEmails.includes(user.email.toLowerCase()));
   async function adminOnly(req: Request) {
     const { user } = await authenticate(req);
-    if (!isAdmin(user)) throw new SocialError(404, 'API route not found.');
+    if (!isAdmin(user)) throw new HttpError(404, 'API route not found.');
     return user;
   }
   async function record(user: User, action: string, target: string, note?: string) {
@@ -91,7 +84,7 @@ export function adminRoutes(
       string,
       any
     > | null;
-    if (!order) throw new SocialError(404, 'Order not found.');
+    if (!order) throw new HttpError(404, 'Order not found.');
     const events = must(
       await admin
         .from('order_events')
@@ -139,8 +132,8 @@ export function adminRoutes(
       status: string;
       funds: string;
     } | null;
-    if (!order) throw new SocialError(404, 'Order not found.');
-    const reference = `support:${user.id}`;
+    if (!order) throw new HttpError(404, 'Order not found.');
+    const reference = 'support';
     let result: Result<unknown>;
     if (order.funds === 'held' && (input.decision === 'refund' || order.status === 'disputed')) {
       result = await admin.rpc('order_system', {
@@ -153,7 +146,7 @@ export function adminRoutes(
       // The seller has been, or is about to be, paid: take the payout back first.
       result = await admin.rpc('order_clawback', { p_action: 'start', p_order: id, p_ref: reference, p_refund: true });
       if (missing(result.error))
-        throw new SocialError(
+        throw new HttpError(
           409,
           'Refunding after payout needs the latest database update. Apply the pending migration first.',
         );
@@ -165,13 +158,13 @@ export function adminRoutes(
           p_event: null,
         });
     } else {
-      throw new SocialError(
+      throw new HttpError(
         409,
         `This order cannot be ${input.decision === 'release' ? 'released' : 'refunded'} in its current state (${order.status}, ${order.funds}).`,
       );
     }
     if (result.error)
-      throw new SocialError(
+      throw new HttpError(
         result.error.code === '23514' ? 409 : 503,
         result.error.code === '23514'
           ? 'The order changed while you were deciding. Refresh and try again.'
@@ -197,7 +190,7 @@ export function adminRoutes(
       await admin.from('conversation_reports').update({ status: input.status }).eq('id', id).select('id'),
       'Report',
     ) as unknown[];
-    if (!updated.length) throw new SocialError(404, 'Report not found.');
+    if (!updated.length) throw new HttpError(404, 'Report not found.');
     await record(user, `report_${input.status}`, id, input.note);
     res.json({ ok: true });
   });
@@ -211,7 +204,7 @@ export function adminRoutes(
       await admin.from('listings').update({ status: 'archived' }).eq('id', id).eq('status', 'active').select('id'),
       'Listing',
     ) as unknown[];
-    if (!updated.length) throw new SocialError(404, 'No listing on sale with that ID.');
+    if (!updated.length) throw new HttpError(404, 'No listing on sale with that ID.');
     await record(user, 'listing_takedown', id, input.note);
     res.json({ ok: true });
   });
@@ -220,15 +213,15 @@ export function adminRoutes(
     const user = await adminOnly(req);
     const id = z.uuid().parse(req.params.id);
     const input = note.extend({ suspended: z.boolean() }).strict().parse(req.body);
-    if (id === user.id) throw new SocialError(409, 'You cannot suspend your own account.');
+    if (id === user.id) throw new HttpError(409, 'You cannot suspend your own account.');
     const updated = await admin
       .from('profiles')
       .update({ suspended_at: input.suspended ? new Date().toISOString() : null })
       .eq('id', id)
       .select('id');
     if (missing(updated.error) || updated.error?.code === 'PGRST204')
-      throw new SocialError(409, 'Suspension needs the latest database update. Apply the pending migration first.');
-    if (!(must(updated, 'Suspension') || []).length) throw new SocialError(404, 'Member not found.');
+      throw new HttpError(409, 'Suspension needs the latest database update. Apply the pending migration first.');
+    if (!(must(updated, 'Suspension') || []).length) throw new HttpError(404, 'Member not found.');
     // Their listings come off sale. Orders already under way continue so no buyer is stranded.
     if (input.suspended)
       must(
@@ -249,7 +242,7 @@ export function adminRoutes(
     const input = note.extend({ enabled: z.boolean() }).strict().parse(req.body);
     const result = await admin.rpc('set_checkout_enabled', { p_enabled: input.enabled });
     if (missing(result.error))
-      throw new SocialError(
+      throw new HttpError(
         409,
         'The checkout switch needs the latest database update. Apply the pending migration first.',
       );

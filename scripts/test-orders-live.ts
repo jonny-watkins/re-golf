@@ -11,6 +11,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { readConfig } from '../server/config.js';
+import { assertDevelopmentOnly } from './dev-guard.js';
 import { settleOrders } from '../server/orders.js';
 import { stripePayments } from '../server/payments.js';
 import { createApp } from '../server/app.js';
@@ -20,12 +21,12 @@ import type { AddressInfo } from 'node:net';
 
 const env = dotenv.parse(readFileSync('.env'));
 const config = readConfig(env as NodeJS.ProcessEnv);
-assert.ok(config.stripeSecretKey.startsWith('sk_test_'), 'Stripe test keys only');
+assertDevelopmentOnly(config);
 const base = 'https://re-golf-development.onrender.com';
 const previewPassword = dotenv.parse(readFileSync('.env.render-preview')).PREVIEW_ACCESS_PASSWORD;
 const cookie = { Cookie: 'relofted_preview=' + createHash('sha256').update(previewPassword).digest('hex') };
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
-const admin = createClient(config.supabaseUrl, config.storageSecret, options);
+const admin = createClient(config.supabaseUrl, config.secretKey, options);
 const stripe = new Stripe(config.stripeSecretKey);
 const payments = stripePayments(config.stripeSecretKey, config.stripeWebhookSecret, config.stripeConnectWebhookSecret);
 
@@ -477,7 +478,7 @@ try {
         history.slice(-2).map(event => event.action),
         ['resolve_refund', 'refunded'],
       );
-      assert.equal(history.at(-2)!.note, 'support:' + boss.id);
+      assert.equal(history.at(-2)!.note, 'support', 'order history must not reveal which administrator decided');
       // Listing takedown.
       const bad = await newListing(seller, 900);
       assert.equal((await support(alice, `/api/admin/listings/${bad}/takedown`, { note: 'not allowed' })).status, 404);

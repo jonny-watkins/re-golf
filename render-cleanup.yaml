@@ -17,5 +17,5 @@ services:
         value: production
       - key: SUPABASE_URL
         sync: false
-      - key: SUPABASE_STORAGE_SECRET
+      - key: SUPABASE_SECRET_KEY
         sync: false

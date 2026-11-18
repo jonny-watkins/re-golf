@@ -10,15 +10,16 @@ import { chromium, type Frame, type Locator, type Page } from 'playwright';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { readConfig } from '../server/config.js';
+import { assertDevelopmentOnly } from './dev-guard.js';
 
 const env = dotenv.parse(readFileSync('.env'));
 const config = readConfig(env as NodeJS.ProcessEnv);
-assert.ok(config.stripeSecretKey.startsWith('sk_test_'), 'Stripe test keys only');
+assertDevelopmentOnly(config);
 const base = 'https://re-golf-development.onrender.com';
 const previewPassword = dotenv.parse(readFileSync('.env.render-preview')).PREVIEW_ACCESS_PASSWORD;
 const cookie = { Cookie: 'relofted_preview=' + createHash('sha256').update(previewPassword).digest('hex') };
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
-const admin = createClient(config.supabaseUrl, config.storageSecret, options);
+const admin = createClient(config.supabaseUrl, config.secretKey, options);
 const stripe = new Stripe(config.stripeSecretKey);
 const stopAfter = process.env.STOP_AFTER || '';
 const shots = 'artifacts/orders-flow/';
@@ -65,22 +66,20 @@ async function until<T>(what: string, read: () => Promise<T | null | undefined |
   throw new Error('Timed out waiting for ' + what);
 }
 async function describeControls(page: Page) {
-  const found = await page
-    .locator('input,select,button,a[role=button]')
-    .evaluateAll(nodes =>
-      nodes
-        .map(n => ({
-          tag: n.tagName,
-          id: n.id,
-          name: (n as HTMLInputElement).name,
-          type: (n as HTMLInputElement).type,
-          text: (n.textContent || '').trim().slice(0, 40),
-          label: n.getAttribute('aria-label'),
-          testid: n.getAttribute('data-testid'),
-          visible: !!(n as HTMLElement).offsetParent,
-        }))
-        .filter(n => n.visible && (n.id || n.testid || n.text || n.label)),
-    );
+  const found = await page.locator('input,select,button,a[role=button]').evaluateAll(nodes =>
+    nodes
+      .map(n => ({
+        tag: n.tagName,
+        id: n.id,
+        name: (n as HTMLInputElement).name,
+        type: (n as HTMLInputElement).type,
+        text: (n.textContent || '').trim().slice(0, 40),
+        label: n.getAttribute('aria-label'),
+        testid: n.getAttribute('data-testid'),
+        visible: !!(n as HTMLElement).offsetParent,
+      }))
+      .filter(n => n.visible && (n.id || n.testid || n.text || n.label)),
+  );
   console.log(
     found
       .map(n => `${n.tag}#${n.id}[${n.name || ''}|${n.type || ''}|${n.testid || ''}] "${n.text || n.label || ''}"`)

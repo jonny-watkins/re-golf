@@ -14,9 +14,9 @@ assert.equal(
   'Set PHOTO_TEST_PROJECT to the development project ref',
 );
 const config = readConfig(process.env);
-assert.ok(config.storageSecret, 'Storage secret must be configured');
+assert.ok(config.secretKey, 'Storage secret must be configured');
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
-const admin = createClient(config.supabaseUrl, config.storageSecret, options);
+const admin = createClient(config.supabaseUrl, config.secretKey, options);
 const users: string[] = [];
 const clients: ReturnType<typeof createClient>[] = [];
 const tokens: string[] = [];
@@ -41,7 +41,7 @@ const request = (path: string, token = '', body?: unknown, binary = false) =>
 try {
   stage = 'capabilities';
   const exposed = await (await request('/api/config')).text();
-  assert.ok(!exposed.includes(config.storageSecret));
+  assert.ok(!exposed.includes(config.secretKey));
   assert.equal(JSON.parse(exposed).photosEnabled, true);
   for (let i = 0; i < 2; i++) {
     stage = 'temporary account creation';

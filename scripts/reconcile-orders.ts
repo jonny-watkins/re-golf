@@ -13,7 +13,7 @@ if (!config.stripeSecretKey) throw new Error('Set the Stripe keys in .env first.
 const days = Number(process.argv[2] || 30);
 const since = new Date(Date.now() - days * 86_400_000);
 const stripe = new Stripe(config.stripeSecretKey);
-const admin = createClient(config.supabaseUrl, config.storageSecret, {
+const admin = createClient(config.supabaseUrl, config.secretKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const money = (pence: number) => '£' + (pence / 100).toFixed(2);

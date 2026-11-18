@@ -2,7 +2,7 @@ import type { Express, Request } from 'express';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { SocialError } from './social.js';
+import { HttpError } from './errors.js';
 import type { Payments } from './payments.js';
 
 type Authenticate = (req: Request) => Promise<{ db: SupabaseClient; user: User }>;
@@ -24,7 +24,7 @@ export async function closeAccount(admin: SupabaseClient, userId: string, paymen
     .limit(1);
   if (busy.error) throw new Error('Order check failed');
   if (busy.data.length)
-    throw new SocialError(
+    throw new HttpError(
       409,
       'You have an order in progress. Your account can be deleted once it is complete and any payment has been settled.',
     );
@@ -34,7 +34,7 @@ export async function closeAccount(admin: SupabaseClient, userId: string, paymen
     .eq('id', userId);
   if (marked.error) {
     if (['PGRST204', '42703'].includes(marked.error.code || ''))
-      throw new SocialError(503, 'Account deletion is not available yet. Please contact support.');
+      throw new HttpError(503, 'Account deletion is not available yet. Please contact support.');
     throw new Error('Profile update failed');
   }
   // Everything below is tidy-up; the account is already unable to act.

@@ -14,7 +14,7 @@ assert.equal(
   'Explicit development project opt-in required',
 );
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
-const admin = createClient(config.supabaseUrl, config.storageSecret, options);
+const admin = createClient(config.supabaseUrl, config.secretKey, options);
 const actors: { id: string; token: string; client: ReturnType<typeof createClient> }[] = [];
 const ids: string[] = [];
 let stage = 'account creation';

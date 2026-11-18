@@ -97,7 +97,7 @@ test('payment configuration is all-or-nothing and live keys need a second switch
         STRIPE_SECRET_KEY: 'sk_test_abc',
         STRIPE_WEBHOOK_SECRET: 'whsec_abc',
       }),
-    /SUPABASE_STORAGE_SECRET/,
+    /SUPABASE_SECRET_KEY/,
   );
   assert.throws(
     () => readConfig({ ...base, STRIPE_SECRET_KEY: 'sk_live_abc', STRIPE_WEBHOOK_SECRET: 'whsec_abc' }),
@@ -395,7 +395,7 @@ test('support routes are invisible to non-administrators and audited for adminis
   };
   assert.deepEqual(config.adminEmails, ['boss@example.com', 'other@example.com']);
   assert.throws(() => readConfig({ ADMIN_EMAILS: 'not-an-email' }), /ADMIN_EMAILS/);
-  assert.throws(() => readConfig({ ADMIN_EMAILS: 'boss@example.com' }), /SUPABASE_STORAGE_SECRET/);
+  assert.throws(() => readConfig({ ADMIN_EMAILS: 'boss@example.com' }), /SUPABASE_SECRET_KEY/);
   const server = createApp(config, client, admin.client).listen(0, '127.0.0.1');
   await once(server, 'listening');
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -437,7 +437,7 @@ test('support routes are invisible to non-administrators and audited for adminis
     });
     assert.equal(resolved.status, 200, JSON.stringify(resolved.data));
     assert.deepEqual(admin.calls, [
-      { rpc: 'order_system', p_action: 'resolve_refund', p_order: order, p_ref: 'support:admin-1', p_event: null },
+      { rpc: 'order_system', p_action: 'resolve_refund', p_order: order, p_ref: 'support', p_event: null },
       {
         table: 'admin_actions',
         insert: { admin_id: 'admin-1', action: 'order_refund', target: order, note: 'Item not as described' },

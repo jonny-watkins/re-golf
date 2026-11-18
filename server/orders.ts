@@ -1,8 +1,9 @@
 import express, { type Express, type Request } from 'express';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { SocialError } from './social.js';
+import { HttpError } from './errors.js';
 import type { OrderRow, PaymentEvent, Payments } from './payments.js';
+import { must } from './db.js';
 
 type Authenticate = (req: Request) => Promise<{ db: SupabaseClient; user: User }>;
 const orderColumns =
@@ -22,12 +23,8 @@ function check<T>(result: { data: T; error: { code?: string; message?: string } 
   const { error } = result;
   if (!error) return result.data;
   const status = statusByCode[error.code || ''];
-  if (status) throw new SocialError(status, error.message || 'This order action is unavailable.');
-  throw new SocialError(503, 'Orders could not be loaded or updated. Please try again.');
-}
-function must<T>(result: { data: T; error: unknown }, what: string): T {
-  if (result.error) throw new Error(`${what} failed`);
-  return result.data;
+  if (status) throw new HttpError(status, error.message || 'This order action is unavailable.');
+  throw new HttpError(503, 'Orders could not be loaded or updated. Please try again.');
 }
 
 /** Registered before the JSON parser: signature checks need the exact bytes Stripe sent. */
@@ -63,19 +60,17 @@ export async function handlePaymentEvent(admin: SupabaseClient, event: PaymentEv
       throw new Error(`Payment amount mismatch for order ${order.id}`);
     if (event.address) {
       const a = event.address;
-      const saved = await admin
-        .from('order_addresses')
-        .upsert(
-          {
-            order_id: order.id,
-            name: a.name.slice(0, 120),
-            line1: a.line1.slice(0, 120),
-            line2: a.line2?.slice(0, 120) || null,
-            city: (a.city || '-').slice(0, 80),
-            postcode: a.postcode.slice(0, 12),
-          },
-          { onConflict: 'order_id' },
-        );
+      const saved = await admin.from('order_addresses').upsert(
+        {
+          order_id: order.id,
+          name: a.name.slice(0, 120),
+          line1: a.line1.slice(0, 120),
+          line2: a.line2?.slice(0, 120) || null,
+          city: (a.city || '-').slice(0, 80),
+          postcode: a.postcode.slice(0, 12),
+        },
+        { onConflict: 'order_id' },
+      );
       // A missing address must not block recording the payment; support can recover it from the provider.
       if (saved.error) console.error('Delivery address could not be saved for order', order.id);
     }
@@ -290,7 +285,7 @@ export function orderRoutes(
     const order = check(await db.from('orders').select('listing_id').eq('id', id).maybeSingle()) as {
       listing_id: string;
     } | null;
-    if (!order) throw new SocialError(404, 'Order not found.');
+    if (!order) throw new HttpError(404, 'Order not found.');
     const photo = must(
       await admin
         .from('listing_photos')
@@ -302,9 +297,9 @@ export function orderRoutes(
         .maybeSingle(),
       'Photo lookup',
     ) as { id: string } | null;
-    if (!photo) throw new SocialError(404, 'This item has no photo.');
+    if (!photo) throw new HttpError(404, 'This item has no photo.');
     const file = await admin.storage.from('listing-photos').download(`${order.listing_id}/${photo.id}.webp`);
-    if (file.error) throw new SocialError(404, 'This item has no photo.');
+    if (file.error) throw new HttpError(404, 'This item has no photo.');
     res.set('Cache-Control', 'private, max-age=86400');
     res.type('image/webp').send(Buffer.from(await file.data.arrayBuffer()));
   });
@@ -333,7 +328,7 @@ export function orderRoutes(
     } catch (error) {
       console.error('Checkout could not be started for order', order.id, error instanceof Error ? error.message : '');
       await db.rpc('order_action', { p_action: 'cancel', p_order: order.id });
-      throw new SocialError(503, 'Payment could not be started. You have not been charged; please try again.');
+      throw new HttpError(503, 'Payment could not be started. You have not been charged; please try again.');
     }
     res.status(201).json({ order, checkout_url: url });
   });
@@ -344,9 +339,9 @@ export function orderRoutes(
     const order = check(
       await db.from('orders').select('*').eq('id', id).eq('buyer_id', user.id).maybeSingle(),
     ) as OrderRow | null;
-    if (!order) throw new SocialError(404, 'Order not found.');
+    if (!order) throw new HttpError(404, 'Order not found.');
     if (order.status !== 'awaiting_payment' || Date.parse(order.expires_at) <= Date.now())
-      throw new SocialError(409, 'This checkout has expired. Start again from the listing.');
+      throw new HttpError(409, 'This checkout has expired. Start again from the listing.');
     res.json({ checkout_url: await startPayment(order, user.email) });
   });
   app.post('/api/orders/:id/review', async (req, res) => {
@@ -358,7 +353,7 @@ export function orderRoutes(
       .parse(req.body);
     const made = await db.rpc('leave_review', { p_order: id, p_rating: rating, p_comment: comment });
     if (made.error && ['PGRST202', '42883'].includes(made.error.code || ''))
-      throw new SocialError(503, 'Reviews are not available yet.');
+      throw new HttpError(503, 'Reviews are not available yet.');
     check(made);
     res.status(201).json({ ok: true });
   });

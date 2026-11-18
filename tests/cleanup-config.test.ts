@@ -9,7 +9,16 @@ test('Render cleanup runs without web origin, preview password or publishable ke
     SUPABASE_STORAGE_SECRET: 'sb_secret_test',
   });
   assert.equal(config.supabaseUrl, 'https://test.supabase.co');
-  assert.equal(config.storageSecret, 'sb_secret_test');
+  assert.equal(config.secretKey, 'sb_secret_test');
+  // The current name wins over the earlier one when both are set.
+  assert.equal(
+    readCleanupConfig({
+      SUPABASE_URL: 'https://test.supabase.co',
+      SUPABASE_SECRET_KEY: 'sb_secret_new',
+      SUPABASE_STORAGE_SECRET: 'sb_secret_old',
+    }).secretKey,
+    'sb_secret_new',
+  );
 });
 
 test('cleanup rejects missing credentials and unsafe destinations without echoing secrets', () => {

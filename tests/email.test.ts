@@ -58,7 +58,7 @@ test('email settings are all-or-nothing', () => {
   assert.throws(() => readConfig({ ...base, EMAIL_API_KEY: 're_123', EMAIL_FROM: 'not an address' }), /EMAIL_FROM/);
   assert.throws(
     () => readConfig({ EMAIL_API_KEY: 're_123', EMAIL_FROM: 'orders@relofted.example' }),
-    /SUPABASE_STORAGE_SECRET/,
+    /SUPABASE_SECRET_KEY/,
   );
   assert.equal(
     readConfig({ ...base, EMAIL_API_KEY: 're_123', EMAIL_FROM: 'Relofted <orders@relofted.example>' }).emailFrom,

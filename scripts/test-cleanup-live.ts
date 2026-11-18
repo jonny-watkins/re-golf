@@ -8,7 +8,7 @@ import { cleanupPhotos } from '../server/photo-cleanup.js';
 
 const config = readCleanupConfig(process.env);
 assert.equal(process.env.TEST_PROJECT, new URL(config.supabaseUrl).hostname.split('.')[0]);
-const db = createClient(config.supabaseUrl, config.storageSecret, {
+const db = createClient(config.supabaseUrl, config.secretKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const check = (r: { error: unknown }) => {

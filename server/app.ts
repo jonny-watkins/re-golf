@@ -6,16 +6,24 @@ import { z } from 'zod';
 import { categories, conditions, listingColumns, listingInput, maxPhotoBytes } from '../shared/listings.js';
 import { normalisePhoto } from './images.js';
 import type { AppConfig } from './config.js';
-import { socialRoutes, SocialError } from './social.js';
+import { socialRoutes } from './social.js';
+import { HttpError } from './errors.js';
 import { orderRoutes, paymentWebhook, settleOrders } from './orders.js';
 import { stripePayments, type Payments } from './payments.js';
 import { adminRoutes } from './admin.js';
 import { searchFilters } from './search.js';
 import { accountRoutes } from './account.js';
 import { resendSender, sendPendingEmails, type EmailSender } from './email.js';
+import { runRetention } from './retention.js';
 import { timingSafeEqual, createHash } from 'node:crypto';
 
 export type ClientFactory = (token?: string) => SupabaseClient;
+/** Work the server repeats on a timer. Each is safe to run at any time and more than once. */
+export type BackgroundJobs = {
+  settleOrders?: () => Promise<Record<string, number>>;
+  sendEmails?: () => Promise<{ sent: number; dropped: number; failed: number }>;
+  cleanUp?: () => Promise<Record<string, number>>;
+};
 export function createApp(
   config: AppConfig,
   clientOverride?: ClientFactory,
@@ -24,6 +32,7 @@ export function createApp(
   emailOverride?: EmailSender,
 ) {
   const app = express();
+  const jobs: BackgroundJobs = {};
   app.disable('x-powered-by');
   // Trust only the configured number of hops, never arbitrary forwarded headers.
   app.set('trust proxy', config.trustProxyHops);
@@ -92,8 +101,8 @@ export function createApp(
   const configured = Boolean(config.supabaseUrl && config.publishableKey);
   const storageAdmin =
     storageOverride ||
-    (config.storageSecret
-      ? createClient(config.supabaseUrl, config.storageSecret, {
+    (config.secretKey
+      ? createClient(config.supabaseUrl, config.secretKey, {
           auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
         })
       : null);
@@ -106,7 +115,7 @@ export function createApp(
   // Before the rate limiter and JSON parser: provider retries must not be throttled, and the signature covers the raw body.
   if (payments && storageAdmin) {
     paymentWebhook(app, storageAdmin, payments);
-    app.locals.settleOrders = () => settleOrders(storageAdmin, payments);
+    jobs.settleOrders = () => settleOrders(storageAdmin, payments);
   }
   app.use(
     '/api',
@@ -450,17 +459,18 @@ export function createApp(
   if (storageAdmin) {
     accountRoutes(app, authenticated, storageAdmin, payments);
     const sender = emailOverride || (config.emailApiKey ? resendSender(config.emailApiKey, config.emailFrom) : null);
-    if (sender) app.locals.sendEmails = () => sendPendingEmails(storageAdmin, sender, config.origin);
+    jobs.cleanUp = () => runRetention(storageAdmin);
+    if (sender) jobs.sendEmails = () => sendPendingEmails(storageAdmin, sender, config.origin);
   }
   if (storageAdmin && config.adminEmails.length)
-    adminRoutes(app, authenticated, storageAdmin, config.adminEmails, app.locals.settleOrders);
+    adminRoutes(app, authenticated, storageAdmin, config.adminEmails, jobs.settleOrders);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found.' }));
   const handleError: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: 'Check the submitted fields.', fields: error.flatten() });
       return;
     }
-    if (error instanceof HttpError || error instanceof SocialError) {
+    if (error instanceof HttpError) {
       res.status(error.status).json({ error: error.message });
       return;
     }
@@ -481,14 +491,5 @@ export function createApp(
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   };
   app.use(handleError);
-  return app;
-}
-
-class HttpError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
+  return Object.assign(app, { jobs });
 }

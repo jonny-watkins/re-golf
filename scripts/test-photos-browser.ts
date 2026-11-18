@@ -13,7 +13,7 @@ import { readConfig } from '../server/config.js';
 
 const config = readConfig(process.env);
 assert.equal(process.env.PHOTO_TEST_PROJECT, new URL(config.supabaseUrl).hostname.split('.')[0]);
-const admin = createClient(config.supabaseUrl, config.storageSecret, {
+const admin = createClient(config.supabaseUrl, config.secretKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const app = createApp(config);

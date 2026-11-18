@@ -39,7 +39,7 @@ const server = app.listen(config.port, config.host, () => {
 
 // Applies order deadlines and performs due refunds and seller payouts. Repeat-safe,
 // so running it here avoids needing a separate paid scheduler for a single instance.
-const settle = app.locals.settleOrders as undefined | (() => Promise<Record<string, number>>);
+const settle = app.jobs.settleOrders;
 if (settle) {
   const run = () =>
     settle()
@@ -54,8 +54,7 @@ if (settle) {
 }
 
 // Queued emails go out once a minute. Nothing is sent until an email provider is configured.
-const sendEmails = app.locals.sendEmails as
-  undefined | (() => Promise<{ sent: number; dropped: number; failed: number }>);
+const sendEmails = app.jobs.sendEmails;
 if (sendEmails) {
   setInterval(
     () =>
@@ -66,6 +65,19 @@ if (sendEmails) {
         .catch(error => console.error('Email run failed:', error instanceof Error ? error.message : 'Unknown error')),
     60_000,
   ).unref();
+}
+
+// Old delivery addresses, sent emails and payment event IDs are removed a few times a day.
+const cleanUp = app.jobs.cleanUp;
+if (cleanUp) {
+  const run = () =>
+    void cleanUp()
+      .then(result => {
+        if (Object.values(result).some(Boolean)) console.log('Clean-up:', JSON.stringify(result));
+      })
+      .catch(error => console.error('Clean-up failed:', error instanceof Error ? error.message : 'Unknown error'));
+  setTimeout(run, 60_000).unref();
+  setInterval(run, 6 * 60 * 60_000).unref();
 }
 
 function shutdown() {
