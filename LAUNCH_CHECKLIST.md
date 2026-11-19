@@ -29,7 +29,7 @@ What stands between this and a publishable app:
 - [x] [J] Migration `20261117180000_support_and_clawback.sql` applied to the development database (17 Nov). Verified on the preview: reviews, checkout switch, fee-inclusive pricing, audit trail, payout clawback; simulation tables removed.
 - [x] [J] Migration `20261117210000_accounts_and_emails.sql` applied to the development database (17 Nov). Verified on the preview: emails queued to the right person at each order step, suspension, account deletion (16 hosted checks pass).
 - [x] [J] Migration `20261118130000_minimum_fee_and_payout_rule.sql` applied to the development database (18 Nov). Verified on the preview: £3 minimum fee charged through Stripe, an item cannot be bought until its seller has finished payout setup (19 hosted checks and the browser purchase pass).
-- [ ] [D] Show on the listing page that an item cannot be bought yet (rather than only on pressing "Buy now").
+- [x] [D] The listing page says when an item cannot be bought yet (19 Nov): buyers see "Not available to buy yet" and why; the seller sees a prompt to set up payouts.
 - [ ] [J] **Choose the support administrators:** set `ADMIN_EMAILS` on Render (and in local `.env`) to the sign-in email(s) allowed to open the Support screen, comma-separated. Until then the screen is off.
 - [ ] [J] Look over the `payments` branch and merge it into `main` when happy.
 
@@ -94,13 +94,15 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [ ] [D] Declined-card behaviour observed in the browser (abandonment and expiry are covered by the hosted checks).
 - [x] [D] Bank dispute or support refund after the seller has been paid: the transfer is taken back, then the buyer refunded if that was the decision. Proven against the Stripe sandbox (transfer fully reversed, buyer refunded in full). A real bank dispute event has not been simulated.
 - [x] [D] Reconciliation: `npm run orders:reconcile` compares Stripe charges, refunds and seller transfers with the orders table in both directions and exits non-zero on any difference. First run correctly flagged the £100 sample payment Stripe's own setup guide created (no order behind it); refund or ignore it.
-- [ ] [D] Schedule the reconciliation daily and alert on failure (needs the production host).
+- [x] [D] Reconciliation also checks for stuck refunds and payouts, order deadlines not being applied, and emails that keep failing (19 Nov). An hourly GitHub workflow (`.github/workflows/money-check.yml`) runs it and GitHub emails the owner on failure. It does nothing until the `production` secrets exist (GO_LIVE step 5), and scheduled runs start only once this is merged to `main`. It is not pointed at the development sandbox, where deleted test orders leave unmatched test payments.
+- [ ] [J] Add the `production` secrets for the money check at launch (GO_LIVE step 5).
 - [ ] [D] The free Render service sleeps when idle, which delays webhooks and the 5-minute settlement. Acceptable for testing; production needs an always-on plan.
 
 ## 4. Delivery and completion [D]
 
 - [x] Carrier and tracking number required on dispatch and shown to the buyer.
-- [ ] Turn the tracking number into a carrier link; optionally confirm delivery from carrier tracking instead of the buyer.
+- [x] Tracking numbers link to the carrier's tracking page for Royal Mail, Parcelforce, Evri and UPS (19 Nov). The link formats have not been clicked with a real parcel; do that in the pilot. Other carriers show the number only.
+- [ ] Optionally confirm delivery from carrier tracking instead of the buyer.
 - [x] Order deadlines run inside the web server (no paid scheduler needed). Photo cleanup still needs one, or can be moved in-process the same way.
 - [x] Buyer can report a problem, which freezes payment.
 - [x] Settling a reported problem (18 Nov): the seller refunds straight away or asks for the item back at an address they give; the buyer has 5 days (`return_days` setting) to post it with tracking or the seller is paid; the buyer is refunded when the seller confirms it is back, or automatically 10 days after it was posted; the buyer can withdraw the problem; either side can ask support to decide, which stops the automatic deadlines. Card disputes stay support-only. Database rules tested (`tests/returns.test.ts`); emails and policy drafts updated. Hosted check passed 18 Nov against the development database and Stripe sandbox (tracked return refunded through Stripe, missed return pays the seller, asking support to decide).
@@ -108,7 +110,8 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [x] [D] Return flow added to `npm run test:orders:live` (18/18 pass).
 - [x] [D] Return flow clicked through in a real (headless Edge) browser on the preview as buyer and seller (18 Nov): seller asks for the item back, buyer sees the return address and deadline and posts with tracking, seller confirms, buyer refunded in full through Stripe. `npm run test:returns:browser`.
 - [ ] [J] Return postage is paid by the buyer in every case (Vinted's rule). Confirm with the policy review, especially for items not as described.
-- [ ] Still to do on problems: photos with the report, partial refunds, and confirming the return from carrier tracking.
+- [ ] [D] Next database change (one migration, applied with `db:push`): photos with a problem report, and unread-message tracking for the header indicator.
+- [ ] Later on problems: partial refunds, and confirming the return from carrier tracking.
 - [ ] Delete delivery addresses a set time after completion (retention).
 - [x] Reviews: buyer and seller can each leave one rating and comment after an order completes; the seller's average shows on their listings. Hosted check passed.
 
@@ -141,6 +144,9 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 
 - [x] [D] Go-live pack: `GO_LIVE.md` (step-by-step runbook) and `supabase/production-setup.sql` (one paste builds a new production database; a test keeps it in step with the migrations).
 - [ ] [J] Domain; separate **production** Supabase project and Render service (paid plan — the free plan sleeps and would miss webhooks).
+- [x] [D] Every listing has its own address, `/listing/<id>` (19 Nov): a Share button, link previews for messaging apps and social sites (title, price, main photo), Back and Forward, a sitemap and robots file for search engines, and a clear message when a shared listing has gone. Checked in a browser against a local production build (`npm run test:listing:browser`); **still to run on the preview once deployed**, along with the purchase browser check.
+- [x] [D] Database changes go through the Supabase command-line tool (`npm run db:status`, `db:plan`, `db:push`), which records what has been applied (19 Nov). The commands are written and reach the connection step; **not yet run against a real database**.
+- [ ] [J] Add `SUPABASE_DB_URL` to the local `.env` (Supabase → Connect → Session pooler connection string, with the database password). [D] then runs `npm run db:baseline` once on the development database and confirms `npm run db:status`.
 - [ ] Remove the preview password gate for production; keep `noindex` off; tighten CSP.
 - [x] Unexpected server errors are logged with the route and stack trace.
 - [ ] Error monitoring service and alerting.

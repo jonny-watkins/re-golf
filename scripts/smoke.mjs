@@ -63,6 +63,14 @@ try {
   const config = await fetch(`${origin}/api/config`);
   assert.equal((await config.json()).configured, false);
   assert.equal((await fetch(`${origin}/api/listings`)).status, 503);
+  // A listing's own address serves the app, and stays out of search results when there is no such listing.
+  const listing = await fetch(`${origin}/listing/11111111-1111-4111-8111-111111111111`);
+  assert.equal(listing.status, 200);
+  assert.equal(listing.headers.get('x-robots-tag'), 'noindex');
+  assert.match(listing.headers.get('content-security-policy') || '', /script-src 'self'/);
+  assert.match(await listing.text(), /src="\/assets\//);
+  assert.match(await (await fetch(`${origin}/robots.txt`)).text(), /Sitemap: /);
+  assert.equal((await fetch(`${origin}/sitemap.xml`)).status, 200);
   assert.equal((await fetch(`${origin}/.env`)).status, 404);
   assert.equal((await fetch(`${origin}/server/config.ts`)).status, 404);
   console.log('Production smoke check passed: page, assets, auth callback, API, headers, and private file isolation.');

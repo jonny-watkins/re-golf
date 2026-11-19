@@ -266,6 +266,35 @@ export function createApp(
     if (error) throw new HttpError(503, 'Listings could not be loaded. Check the database setup or try again.');
     res.json({ listings: data, total: count, page });
   });
+  // One listing, for its own page. Visible to anyone while on sale, and to its seller always.
+  // `can_buy` is false while the seller has still to finish payout setup (when that rule is on).
+  app.get('/api/listings/:id', async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const db = req.get('authorization') ? (await authenticated(req)).db : client();
+    const { data, error } = await db
+      .from('listings')
+      .select(await columns())
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new HttpError(503, 'The listing could not be loaded. Please try again.');
+    if (!data) throw new HttpError(404, 'This listing is no longer available. It may have been sold or removed.');
+    const listing = data as unknown as { seller_id: string };
+    let canBuy = true;
+    if (payments && storageAdmin) {
+      const account = await storageAdmin
+        .from('seller_accounts')
+        .select('payouts_enabled')
+        .eq('seller_id', listing.seller_id)
+        .maybeSingle();
+      // Only a seller who cannot yet be paid needs the rule looked up, and it is read fresh
+      // (not from the cached prices) so that switching it takes effect at once.
+      if (!account.data?.payouts_enabled) {
+        const settings = await storageAdmin.rpc('marketplace_settings');
+        canBuy = !(settings.data as { require_payouts?: boolean } | null)?.require_payouts;
+      }
+    }
+    res.json({ listing: data, can_buy: canBuy });
+  });
   app.get('/api/me/listings', async (req, res) => {
     const { db, user } = await authenticated(req);
     const { page, q, category, condition, max_price } = paging.parse(req.query);
@@ -493,5 +522,5 @@ export function createApp(
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   };
   app.use(handleError);
-  return Object.assign(app, { jobs });
+  return Object.assign(app, { jobs, publicClient: configured ? () => client() : null });
 }

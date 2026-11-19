@@ -16,7 +16,8 @@ Nothing here has been done yet. The current preview, database and Stripe sandbox
 ## 1. Production database (Supabase)
 
 - [ ] [J] Create a **new** Supabase project for production (paid plan, so it has daily backups and never pauses). Region: London or the nearest EU region.
-- [ ] [J] SQL Editor → New query → paste the whole of `supabase/production-setup.sql` → Run. Expect "Success. No rows returned". Run it once only.
+- [ ] [J] Connect → Session pooler: copy the connection string and put the database password in it. Give it to the developer privately (it is a secret).
+- [ ] [D] `SUPABASE_DB_URL=<that string> npm run db:push -- --production` builds the whole database from the migration files and records each one as applied. `npm run db:status -- --production` should then show every migration on both sides. (Fallback without the tool: paste `supabase/production-setup.sql` into the SQL Editor once.)
 - [ ] [J] Authentication → URL Configuration: set Site URL to `https://<your domain>` and add `https://<your domain>/**` to the redirect list.
 - [ ] [J] Authentication → Emails: set up custom SMTP with the email provider (step 4) and update the email templates to say Relofted.
 - [ ] [J] Project Settings → API keys: copy the project URL, the `sb_publishable_…` key and a new `sb_secret_…` key for the server.
@@ -41,7 +42,7 @@ Nothing here has been done yet. The current preview, database and Stripe sandbox
   | `APP_ORIGIN` | `https://<your domain>` |
   | `SUPABASE_URL` | production project URL |
   | `SUPABASE_PUBLISHABLE_KEY` | production `sb_publishable_…` |
-  | `SUPABASE_STORAGE_SECRET` | production `sb_secret_…` |
+  | `SUPABASE_SECRET_KEY` | production `sb_secret_…` |
   | `STRIPE_SECRET_KEY` | `sk_live_…` |
   | `STRIPE_WEBHOOK_SECRET` | signing secret of the "Your account" destination |
   | `STRIPE_CONNECT_WEBHOOK_SECRET` | signing secret of the "Connected accounts" destination |
@@ -68,6 +69,7 @@ Buying is off in a new database, and the preview password is still on.
 - [ ] [J] One real purchase of a low-value item between two real people, using a real card: pay, post with tracking, confirm delivery, wait for or release the hold, and confirm the money reaches the seller's bank account. Check each email arrives.
 - [ ] [J] One real refund: buy, then refund from the Support screen, and confirm the money returns to the card.
 - [ ] [D] `npm run orders:reconcile` against production shows no mismatches.
+- [ ] [J]/[D] Scheduled money check: in GitHub → Settings → Environments, create `production` with secrets `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `STRIPE_SECRET_KEY` (a restricted read-only live key is enough) and `STRIPE_WEBHOOK_SECRET`. The "Money check" workflow then runs hourly and GitHub emails you if anything is wrong. Run it once by hand from the Actions tab to confirm it passes.
 - [ ] [D] Restore test: confirm a Supabase backup exists and can be restored to a scratch project.
 
 ## 6. Open
@@ -78,7 +80,7 @@ Buying is off in a new database, and the preview password is still on.
 
 ## 7. First two weeks
 
-- [ ] [D] Run `npm run orders:reconcile` daily. Any mismatch: pause buying from the Support screen first, investigate second.
+- [ ] [J] A "Money check failed" email from GitHub means Stripe and the orders disagree or something is stuck. Pause buying from the Support screen first, investigate second.
 - [ ] [J] Check the Support screen daily for orders needing a decision and for reports.
 - [ ] [J] Watch for sellers who have sold but not set up payouts; their money waits until they do.
 

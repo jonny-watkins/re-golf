@@ -1,0 +1,44 @@
+# Scheduled alarm for real money: Stripe must agree with the orders table, and no refund, payout,
+# order deadline or email may be stuck. A failed run emails the repository owner (GitHub's
+# standard notification for failed scheduled workflows).
+#
+# It checks the database and Stripe account whose secrets are stored in the GitHub environment
+# named "production" (Settings → Environments). Until those secrets exist the run does nothing.
+# Scheduled runs only happen from the default branch.
+name: Money check
+on:
+  schedule:
+    - cron: '17 * * * *' # hourly
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency: money-check
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      # A restricted, read-only Stripe key is enough: the check never changes anything.
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      ALLOW_LIVE_PAYMENTS: 'true'
+    steps:
+      - id: configured
+        run: |
+          if [ -n "$SUPABASE_SECRET_KEY" ] && [ -n "$STRIPE_SECRET_KEY" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"
+          else echo "No production secrets yet: nothing to check."; fi
+      - if: steps.configured.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.configured.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - if: steps.configured.outputs.ready == 'true'
+        run: npm ci
+      - if: steps.configured.outputs.ready == 'true'
+        run: npm run orders:reconcile -- 60

@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { listingPages } from './pages.js';
 import { createApp } from './app.js';
 import { readConfig } from './config.js';
 
@@ -22,6 +24,9 @@ if (built) {
       },
     }),
   );
+  // Listing pages are the app page with the listing's own title and link preview.
+  const page = readFileSync(resolve('dist/client/index.html'), 'utf8');
+  listingPages(app, app.publicClient, config.origin, () => page);
   app.use(express.static(resolve('dist/client')));
 } else {
   const { createServer } = await import('vite');

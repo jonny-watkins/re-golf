@@ -39,13 +39,15 @@ Copy `.env.example` to `.env` and fill it in. Without it the app runs with examp
 | `npm run build` then `npm run test:smoke` | The production build starts and serves the site |
 | `npm run test:orders:live` | The whole order flow against the preview and Stripe's sandbox |
 | `npm run test:orders:browser` | A real purchase in a headless browser, including Stripe's payment page |
-| `npm run orders:reconcile` | Stripe's records match the orders table |
+| `npm run test:returns:browser` | Settling a reported problem with a tracked return, clicked through in a browser |
+| `npm run test:listing:browser` | A listing's own page: shared link, link preview, Back and Forward |
+| `npm run orders:reconcile` | Stripe's records match the orders table and no refund, payout, deadline or email is stuck |
 
-The two hosted commands create and delete test data. They refuse to run against anything except the development database and Stripe test keys.
+The hosted and browser commands create and delete test data. They refuse to run against anything except the development database and Stripe test keys.
 
 ## Database changes
 
-Each change is a file in `supabase/migrations/`, applied in filename order. They are currently applied by pasting into the Supabase SQL Editor; moving to the Supabase command-line tool, which records what has been applied, is on the checklist. `supabase/production-setup.sql` is all of them in one file for a brand-new project; regenerate it with `npm run db:production-sql`.
+Each change is a file in `supabase/migrations/`, applied in filename order with the Supabase command-line tool, which records in the database what has been applied: `npm run db:status` shows what is waiting, `npm run db:plan` previews, `npm run db:push` applies. They need `SUPABASE_DB_URL` (see the top of `scripts/db.mjs`). A database that was set up by pasting SQL is brought under the tool once with `npm run db:baseline`. `supabase/production-setup.sql` is all of them in one file for a brand-new project; regenerate it with `npm run db:production-sql`.
 
 ## Configuration
 
@@ -54,5 +56,6 @@ See `.env.example` for every setting. The important ones:
 - `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`: the database project and its public key.
 - `SUPABASE_SECRET_KEY`: the server-only key. It bypasses all access rules, so it must never reach the browser or the repository.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`: payments. Live keys are refused unless `ALLOW_LIVE_PAYMENTS=true`.
+- `SUPABASE_DB_URL`: only for the `db:` commands. The database connection string including its password; never commit it.
 - `ADMIN_EMAILS`: who may open the Support screen.
 - `EMAIL_API_KEY`, `EMAIL_FROM`: order and message emails. Nothing is sent until both are set.

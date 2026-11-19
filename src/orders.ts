@@ -1,3 +1,4 @@
+import { trackingLink } from '../shared/tracking';
 type Order = {
   id: string;
   listing_id: string;
@@ -67,6 +68,18 @@ export function setupOrders(
     if (className) node.className = className;
     parent.append(node);
     return node;
+  }
+  /** A tracking line, with a link to the carrier's tracking page when the carrier is recognised. */
+  function tracked(parent: HTMLElement, label: string, entered?: string | null) {
+    if (!entered) return;
+    const line = add(parent, 'p', `${label}: ${entered}`);
+    const href = trackingLink(entered);
+    if (!href) return;
+    line.append(' · ');
+    const link = add(line, 'a', 'Track parcel');
+    link.href = href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
   }
   function button(parent: HTMLElement, text: string, action: () => Promise<void>, dark = false) {
     const node = add(parent, 'button', text, `button ${dark ? 'button-dark' : 'button-outline'}`);
@@ -219,10 +232,10 @@ export function setupOrders(
         : `You receive ${money(order.item_pence + order.delivery_pence)} (item ${money(order.item_pence)} + postage ${money(order.delivery_pence)})`,
       'order-amounts',
     );
-    if (order.tracking) add(row, 'p', `Tracking: ${order.tracking}`);
+    tracked(row, 'Tracking', order.tracking);
     if (order.issue) add(row, 'p', `Reported problem: ${order.issue}`);
     if (order.return_address) add(row, 'p', `${buying ? 'Return to' : 'Your return address'}: ${order.return_address}`);
-    if (order.return_tracking) add(row, 'p', `Return tracking: ${order.return_tracking}`);
+    tracked(row, 'Return tracking', order.return_tracking);
     if (address)
       add(
         row,

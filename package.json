@@ -18,6 +18,11 @@
     "test:orders:live": "tsx scripts/test-orders-live.ts",
     "test:orders:browser": "tsx scripts/test-orders-browser.ts",
     "test:returns:browser": "tsx scripts/test-returns-browser.ts",
+    "test:listing:browser": "tsx scripts/test-listing-page-browser.ts",
+    "db:status": "node scripts/db.mjs status",
+    "db:plan": "node scripts/db.mjs plan",
+    "db:push": "node scripts/db.mjs push",
+    "db:baseline": "node scripts/db.mjs baseline",
     "db:production-sql": "node scripts/build-production-sql.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

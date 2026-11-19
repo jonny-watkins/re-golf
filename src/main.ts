@@ -368,9 +368,42 @@ async function loadListings() {
     if (request === requestNumber) el('listing-grid').removeAttribute('aria-busy');
   }
 }
-function openListing(id: string) {
-  current = cards.find(item => item.id === id) || null;
-  if (!current) return;
+// Not read from the page: on a listing's own address the server has already put the listing in the title.
+const homeTitle = 'Relofted — Better clubs, back in play';
+const listingPath = (id: string) => `/listing/${id}`;
+const listingInAddress = () => /^\/listing\/([0-9a-f-]{36})\/?$/i.exec(location.pathname)?.[1] || null;
+/**
+ * Shows a listing. It is drawn at once from the list when it is there, then checked with the
+ * server, which also says whether it can be bought yet. `fromAddress` means the browser is
+ * already at the listing's address (a shared link, or Back/Forward).
+ */
+async function openListing(id: string, fromAddress = false) {
+  const known = cards.find(item => item.id === id) || null;
+  if (known) showListing(known, known.sample ? true : null);
+  if (known?.sample) return;
+  if (!fromAddress && known) history.pushState({ listing: id }, '', listingPath(id));
+  try {
+    const data = await api<{ listing: Listing; can_buy: boolean }>(`/api/listings/${id}`);
+    // Ignore the answer if the visitor has moved on to something else meanwhile.
+    if (known ? current?.id !== id || !listingDialog.open : listingInAddress() !== id) return;
+    showListing(data.listing, data.can_buy);
+  } catch (error) {
+    if (known ? current?.id !== id : listingInAddress() !== id) return;
+    if (listingDialog.open) {
+      el<HTMLButtonElement>('checkout-button').disabled = true;
+      message('listing-message', errorMessage(error));
+    } else {
+      history.replaceState(null, '', '/');
+      message('market-message', errorMessage(error));
+      el('market').scrollIntoView();
+    }
+  }
+}
+/** `canBuy` is null until the server has answered. */
+function showListing(item: Card, canBuy: boolean | null) {
+  current = item;
+  document.title = item.sample ? homeTitle : `${item.brand} ${item.name} | Relofted`;
+  el('share-listing').hidden = !!item.sample || item.status !== 'active';
   el('listing-dialog-title').textContent = `${current.brand} ${current.name}`;
   el('listing-dialog-subtitle').textContent = current.sample
     ? 'Example listing · not for sale'
@@ -418,17 +451,56 @@ function openListing(id: string) {
   el('owner-actions').hidden = current.sample || current.seller_id !== session?.user.id || current.status !== 'active';
   el('message-seller').hidden =
     !!current.sample || current.seller_id === session?.user.id || current.status !== 'active';
-  const buyable =
-    orders.enabled && !current.sample && current.status === 'active' && current.seller_id !== session?.user.id;
+  const own = current.seller_id === session?.user.id;
+  const onSale = orders.enabled && !current.sample && current.status === 'active';
+  const buyable = onSale && !own && canBuy !== false;
   const buy = el<HTMLButtonElement>('checkout-button');
   quotedListing = '';
   buy.disabled = !buyable;
-  buy.textContent = buyable ? 'Buy now' : orders.enabled ? 'Not available to buy' : 'Checkout coming later';
-  if (orders.enabled) el('estimate-note').textContent = holdNote;
+  buy.textContent = buyable
+    ? 'Buy now'
+    : onSale && !own
+      ? 'Not available to buy yet'
+      : orders.enabled
+        ? 'Not available to buy'
+        : 'Checkout coming later';
+  if (orders.enabled)
+    el('estimate-note').textContent =
+      onSale && canBuy === false
+        ? own
+          ? 'Buyers cannot buy this yet. Open Orders and choose "Set up payouts" so that you can be paid.'
+          : 'The seller has not finished setting up payments, so this item cannot be bought yet. You can save it or message the seller.'
+        : holdNote;
   message('listing-message', '');
-  listingDialog.showModal();
+  if (!listingDialog.open) listingDialog.showModal();
   void hydratePhotos(listingDialog);
 }
+// Closing the listing returns the address bar to the marketplace; Back and Forward open and close it.
+listingDialog.addEventListener('close', () => {
+  document.title = homeTitle;
+  if (!listingInAddress()) return;
+  if (history.state?.listing) history.back();
+  else history.replaceState(null, '', '/');
+});
+window.addEventListener('popstate', () => {
+  const id = listingInAddress();
+  if (id) void openListing(id, true);
+  else if (listingDialog.open) listingDialog.close();
+});
+el('share-listing').addEventListener('click', async () => {
+  if (!current) return;
+  const url = location.origin + listingPath(current.id);
+  try {
+    if (navigator.share) await navigator.share({ title: `${current.brand} ${current.name} on Relofted`, url });
+    else {
+      await navigator.clipboard.writeText(url);
+      message('listing-message', 'Link copied.');
+    }
+  } catch (error) {
+    // Dismissing the share sheet is not an error worth reporting.
+    if (!(error instanceof DOMException && error.name === 'AbortError')) message('listing-message', url);
+  }
+});
 el('photo-gallery').addEventListener('click', event => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-gallery-photo]');
   if (!button || !current) return;
@@ -538,7 +610,7 @@ el('listing-grid').addEventListener('click', async event => {
     return;
   }
   const details = target.closest<HTMLButtonElement>('[data-listing]');
-  if (details) openListing(details.dataset.listing!);
+  if (details) void openListing(details.dataset.listing!);
 });
 for (const [id, mode] of [
   ['browse-listings', 'browse'],
@@ -927,6 +999,9 @@ async function initialise() {
       history.replaceState(null, '', '/');
     }
     await loadListings();
+    // Arriving on a listing's own address (a shared link).
+    const linked = listingInAddress();
+    if (linked) void openListing(linked, true);
   } catch (error) {
     message('connection-status', 'The marketplace could not connect. Please reload or check the local server.');
     message('market-message', errorMessage(error));
