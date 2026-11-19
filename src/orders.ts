@@ -1,4 +1,7 @@
 import { trackingLink } from '../shared/tracking';
+import { maxPhotoBytes } from '../shared/listings';
+
+const maxIssuePhotos = 4; // per person, enforced by the database
 type Order = {
   id: string;
   listing_id: string;
@@ -23,6 +26,7 @@ type Order = {
   return_posted_at?: string | null;
   return_escalated_at?: string | null;
 };
+type IssuePhoto = { id: string; order_id: string; uploader_id: string };
 type Address = { order_id: string; name: string; line1: string; line2: string | null; city: string; postcode: string };
 type Quote = {
   title: string;
@@ -210,6 +214,8 @@ export function setupOrders(
     address: Address | undefined,
     payoutsEnabled: boolean,
     canReview: boolean,
+    issuePhotos: IssuePhoto[],
+    issuePhotosEnabled: boolean,
   ) {
     const buying = order.buyer_id === user();
     const row = add(parent, 'section', '', 'order-row');
@@ -234,6 +240,60 @@ export function setupOrders(
     );
     tracked(row, 'Tracking', order.tracking);
     if (order.issue) add(row, 'p', `Reported problem: ${order.issue}`);
+    if (issuePhotos.length) {
+      const gallery = add(row, 'div', '', 'issue-photos');
+      issuePhotos.forEach((photo, index) => {
+        const mine = photo.uploader_id === user();
+        const link = add(gallery, 'a');
+        link.target = '_blank';
+        link.rel = 'noopener';
+        const picture = add(link, 'img');
+        picture.alt = `Photo ${index + 1} of the problem, added by ${mine ? 'you' : buying ? 'the seller' : 'the buyer'}`;
+        void photoUrl(`/api/orders/${order.id}/issue-photos/${photo.id}`).then(url => {
+          if (!url) return;
+          picture.src = url;
+          link.href = url;
+        });
+      });
+    }
+    // While the problem is open, each side can add photos as evidence.
+    if (
+      issuePhotosEnabled &&
+      order.status === 'disputed' &&
+      issuePhotos.filter(photo => photo.uploader_id === user()).length < maxIssuePhotos
+    ) {
+      const label = add(row, 'label', buying ? 'Add a photo of the problem ' : 'Add a photo ', 'issue-photo-add');
+      const input = add(label, 'input');
+      input.type = 'file';
+      input.accept = 'image/jpeg,image/png,image/webp';
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        if (!file || busy) return;
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || !file.size || file.size > maxPhotoBytes) {
+          status('Choose a JPEG, PNG or WebP photo up to 8 MB.');
+          input.value = '';
+          return;
+        }
+        busy = true;
+        input.disabled = true;
+        status('Uploading photo…');
+        try {
+          await api(`/api/orders/${order.id}/issue-photos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: file,
+          });
+          status('Photo added.');
+          await load();
+        } catch (error) {
+          status(message(error));
+          input.disabled = false;
+          input.value = '';
+        } finally {
+          busy = false;
+        }
+      });
+    }
     if (order.return_address) add(row, 'p', `${buying ? 'Return to' : 'Your return address'}: ${order.return_address}`);
     tracked(row, 'Return tracking', order.return_tracking);
     if (address)
@@ -372,6 +432,8 @@ export function setupOrders(
       payouts: { started: boolean; enabled: boolean };
       reviewsEnabled?: boolean;
       reviewed?: string[];
+      issuePhotos?: IssuePhoto[];
+      issuePhotosEnabled?: boolean;
     }>('/api/orders');
     if (gen !== generation) return;
     const purchases = el('orders-purchases'),
@@ -410,6 +472,8 @@ export function setupOrders(
         addressByOrder.get(order.id),
         data.payouts.enabled,
         Boolean(data.reviewsEnabled) && order.status === 'completed' && !reviewed.has(order.id),
+        (data.issuePhotos || []).filter(photo => photo.order_id === order.id),
+        Boolean(data.issuePhotosEnabled),
       );
     if (!purchases.childElementCount) purchases.textContent = 'No purchases yet.';
     if (!sales.childElementCount) sales.textContent = 'No sales yet.';

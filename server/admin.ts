@@ -3,6 +3,7 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { HttpError } from './errors.js';
 import { missing, must, type Result } from './db.js';
+import { sendIssuePhoto } from './orders.js';
 
 type Authenticate = (req: Request) => Promise<{ db: SupabaseClient; user: User }>;
 
@@ -116,7 +117,25 @@ export function adminRoutes(
           'Messages',
         ) as unknown[])
       : [];
-    res.json({ order, events, address, messages: messages.reverse() });
+    // Photos the buyer or seller added to the reported problem (none until that migration is applied).
+    const photos = await admin
+      .from('order_issue_photos')
+      .select('id,uploader_id,created_at')
+      .eq('order_id', id)
+      .eq('ready', true)
+      .order('created_at');
+    res.json({ order, events, address, messages: messages.reverse(), issuePhotos: photos.data || [] });
+  });
+  app.get('/api/admin/orders/:id/issue-photos/:photo', async (req, res) => {
+    await adminOnly(req);
+    const id = z.uuid().parse(req.params.id);
+    const photo = z.uuid().parse(req.params.photo);
+    const found = must(
+      await admin.from('order_issue_photos').select('id').eq('id', photo).eq('order_id', id).maybeSingle(),
+      'Problem photo',
+    );
+    if (!found) throw new HttpError(404, 'Photo not found.');
+    await sendIssuePhoto(admin, id, photo, res);
   });
 
   app.post('/api/admin/orders/:id/resolve', async (req, res) => {

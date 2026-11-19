@@ -1,9 +1,12 @@
-import express, { type Express, type Request } from 'express';
+import express, { type Express, type Request, type Response } from 'express';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { HttpError } from './errors.js';
 import type { OrderRow, PaymentEvent, Payments } from './payments.js';
-import { must } from './db.js';
+import { rateLimit } from 'express-rate-limit';
+import { missing, must } from './db.js';
+import { normalisePhoto } from './images.js';
+import { maxPhotoBytes } from '../shared/listings.js';
 
 type Authenticate = (req: Request) => Promise<{ db: SupabaseClient; user: User }>;
 const orderColumns =
@@ -28,6 +31,15 @@ function check<T>(result: { data: T; error: { code?: string; message?: string } 
   const status = statusByCode[error.code || ''];
   if (status) throw new HttpError(status, error.message || 'This order action is unavailable.');
   throw new HttpError(503, 'Orders could not be loaded or updated. Please try again.');
+}
+
+const issuePhotoPath = (order: string, photo: string) => `issues/${order}/${photo}.webp`;
+/** Sends a stored problem photo. The caller has already checked who is asking. */
+export async function sendIssuePhoto(admin: SupabaseClient, order: string, photo: string, res: Response) {
+  const file = await admin.storage.from('listing-photos').download(issuePhotoPath(order, photo));
+  if (file.error) throw new HttpError(404, 'Photo not found.');
+  res.set('Cache-Control', 'private, max-age=86400');
+  res.type('image/webp').send(Buffer.from(await file.data.arrayBuffer()));
 }
 
 /** Registered before the JSON parser: signature checks need the exact bytes Stripe sent. */
@@ -275,9 +287,23 @@ export function orderRoutes(
     // Reviews arrive with a later migration; until then the feature is simply off.
     const reviewed = await db.from('reviews').select('order_id').eq('reviewer_id', user.id);
     const reviewsEnabled = !reviewed.error;
+    // Photos of reported problems arrive with a later migration; until then there are none.
+    const photos = orders.length
+      ? await db
+          .from('order_issue_photos')
+          .select('id,order_id,uploader_id')
+          .in(
+            'order_id',
+            orders.map(order => order.id),
+          )
+          .order('created_at')
+      : { data: [], error: null };
+    if (photos.error && !missing(photos.error)) check(photos);
     res.json({
       orders,
       addresses,
+      issuePhotos: photos.error ? [] : photos.data,
+      issuePhotosEnabled: !photos.error,
       payouts: { started: Boolean(account), enabled: Boolean(account?.payouts_enabled) },
       reviewsEnabled,
       reviewed: reviewsEnabled ? reviewed.data!.map(row => row.order_id) : [],
@@ -308,6 +334,69 @@ export function orderRoutes(
     if (file.error) throw new HttpError(404, 'This item has no photo.');
     res.set('Cache-Control', 'private, max-age=86400');
     res.type('image/webp').send(Buffer.from(await file.data.arrayBuffer()));
+  });
+  // Photos of a reported problem: added by the buyer or seller while the problem is open, kept
+  // privately, and shown only to the two of them (and to support, through the support routes).
+  const issuePhotoLimit = rateLimit({
+    windowMs: 60_000,
+    limit: 20,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error: 'Too many photo uploads. Please wait a minute.' },
+  });
+  app.post(
+    '/api/orders/:id/issue-photos',
+    issuePhotoLimit,
+    async (req, res, next) => {
+      // Checked before the upload is read, so strangers cannot make the server receive files.
+      const { db, user } = await authenticate(req);
+      const id = z.uuid().parse(req.params.id);
+      const order = check(await db.from('orders').select('status').eq('id', id).maybeSingle()) as {
+        status: string;
+      } | null;
+      if (!order) throw new HttpError(404, 'Order not found.');
+      if (order.status !== 'disputed')
+        throw new HttpError(409, 'Photos can only be added while a problem is open on the order.');
+      if (!req.is('application/octet-stream'))
+        throw new HttpError(415, 'Send photo bytes as application/octet-stream.');
+      res.locals.issue = { id, user: user.id };
+      next();
+    },
+    express.raw({ type: 'application/octet-stream', limit: maxPhotoBytes }),
+    async (req, res) => {
+      const { id, user } = res.locals.issue as { id: string; user: string };
+      let bytes: Buffer;
+      try {
+        bytes = await normalisePhoto(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0));
+      } catch {
+        throw new HttpError(400, 'Choose a valid still JPEG, PNG or WebP photo up to 8 MB and 40 megapixels.');
+      }
+      const photo = check(await admin.rpc('add_issue_photo', { p_order: id, p_user: user })) as string;
+      const upload = await admin.storage
+        .from('listing-photos')
+        .upload(issuePhotoPath(id, photo), bytes, { contentType: 'image/webp', upsert: false });
+      const saved = upload.error
+        ? upload
+        : await admin.from('order_issue_photos').update({ ready: true }).eq('id', photo);
+      if (saved.error) {
+        // Leave nothing half-made: the row goes now, and a stray file is harmless without it.
+        await admin.from('order_issue_photos').delete().eq('id', photo);
+        await admin.storage.from('listing-photos').remove([issuePhotoPath(id, photo)]);
+        throw new HttpError(503, 'The photo could not be saved. Please try again.');
+      }
+      res.status(201).json({ photo: { id: photo } });
+    },
+  );
+  app.get('/api/orders/:id/issue-photos/:photo', async (req, res) => {
+    const { db } = await authenticate(req);
+    const id = z.uuid().parse(req.params.id);
+    const photo = z.uuid().parse(req.params.photo);
+    // Row-level security returns the row only to the order's buyer and seller.
+    const found = check(
+      await db.from('order_issue_photos').select('id').eq('id', photo).eq('order_id', id).maybeSingle(),
+    );
+    if (!found) throw new HttpError(404, 'Photo not found.');
+    await sendIssuePhoto(admin, id, photo, res);
   });
   app.post('/api/orders/quote', async (req, res) => {
     const { db } = await authenticate(req);

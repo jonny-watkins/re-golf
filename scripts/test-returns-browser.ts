@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { chromium, type Page } from 'playwright';
 import Stripe from 'stripe';
+import sharp from 'sharp';
 import { createClient } from '@supabase/supabase-js';
 import { readConfig } from '../server/config.js';
 import { assertDevelopmentOnly } from './dev-guard.js';
@@ -16,7 +17,8 @@ import { assertDevelopmentOnly } from './dev-guard.js';
 const env = dotenv.parse(readFileSync('.env'));
 const config = readConfig(env as NodeJS.ProcessEnv);
 assertDevelopmentOnly(config);
-const base = 'https://re-golf-development.onrender.com';
+// CHECK_BASE=http://localhost:3000 runs it against a local `npm start` instead of the preview.
+const base = (process.env.CHECK_BASE || 'https://re-golf-development.onrender.com').replace(/\/$/, '');
 const previewPassword = dotenv.parse(readFileSync('.env.render-preview')).PREVIEW_ACCESS_PASSWORD;
 const cookie = { Cookie: 'relofted_preview=' + createHash('sha256').update(previewPassword).digest('hex') };
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
@@ -31,6 +33,7 @@ let stage = 'fixtures',
   payoutRule = false;
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 const pages: Page[] = [];
+const issueFiles: string[] = [];
 const snap = (page: Page, name: string) =>
   page.screenshot({ path: `${shots}${String(++shot).padStart(2, '0')}-${name}.png`, fullPage: true }).catch(() => {});
 const step = (name: string) => {
@@ -126,7 +129,7 @@ const refresh = (page: Page, text: RegExp) =>
 try {
   // Sellers here have no payout account, so the payout rule is off for the run (see test-orders-live.ts).
   payoutRule = !(await admin.rpc('set_require_payouts', { p_required: false })).error;
-  for (const name of ['seller', 'buyer']) {
+  for (const name of ['seller', 'buyer', 'outsider']) {
     const email = `returns-browser-${name}-${randomUUID()}@example.com`,
       password = randomUUID() + 'Aa1!';
     const made = await admin.auth.admin.createUser({
@@ -142,7 +145,7 @@ try {
     });
     users.push({ id: made.data.user!.id, email, password, token: login.data.session!.access_token });
   }
-  const [seller, buyer] = users;
+  const [seller, buyer, outsider] = users;
   const listed = await api(seller, '/api/listings', {
     name: 'Return test putter ' + randomUUID().slice(0, 6),
     brand: 'Automated',
@@ -152,6 +155,14 @@ try {
     location: 'Test',
   });
   assert.equal(listed.status, 201, JSON.stringify(listed.data));
+  // A conversation from before the sale, with a message the buyer has not read.
+  const thread = await api(buyer, '/api/conversations', { listing_id: listed.data.listing.id });
+  assert.ok([200, 201].includes(thread.status), JSON.stringify(thread.data));
+  const sent = await api(seller, `/api/conversations/${thread.data.conversation.id}/messages`, {
+    body: 'It is still available.',
+    client_id: randomUUID(),
+  });
+  assert.equal(sent.status, 201, JSON.stringify(sent.data));
   const reserved = await api(buyer, '/api/orders', { listing_id: listed.data.listing.id, request_id: randomUUID() });
   assert.equal(reserved.status, 201, JSON.stringify(reserved.data));
   const order = reserved.data.order as { id: string; total_pence: number };
@@ -160,6 +171,10 @@ try {
   assert.equal(posted.status, 200, JSON.stringify(posted.data));
   const reported = await api(buyer, `/api/orders/${order.id}/report_issue`, { text: 'Shaft is cracked' });
   assert.equal(reported.status, 200, JSON.stringify(reported.data));
+
+  // Problem photos and unread messages arrive with migration 20261119100000; checked when it is applied.
+  const extras = Boolean((await api(buyer, '/api/orders')).data.issuePhotosEnabled);
+  if (!extras) console.log('NOTE problem photos and unread messages are not in this database yet');
 
   browser = await chromium.launch({ channel: 'msedge', headless: true });
   const open = async (user: User) => {
@@ -200,6 +215,47 @@ try {
   assert.ok(asked.includes(returnAddress), 'return address shown to the buyer: ' + asked);
   assert.match(asked, /Return postage is paid by you/);
   await snap(buyerPage, 'buyer-asked');
+  if (extras) {
+    step('the buyer has an unread message, adds a photo of the problem, and the seller can see it');
+    await buyerPage.locator('#messages-button').filter({ hasText: 'Messages (1)' }).waitFor();
+    const picture = await sharp({ create: { width: 640, height: 480, channels: 3, background: '#8a5a2b' } })
+      .jpeg()
+      .toBuffer();
+    await purchase
+      .locator('.issue-photo-add input')
+      .setInputFiles({ name: 'cracked-shaft.jpg', mimeType: 'image/jpeg', buffer: picture });
+    await buyerPage.locator('#orders-status').filter({ hasText: 'Photo added' }).waitFor({ timeout: 60_000 });
+    await purchase.locator('.issue-photos img[src^="blob:"]').waitFor();
+    await snap(buyerPage, 'buyer-photo');
+    await refresh(sellerPage, /You asked for the item back/);
+    await sale.locator('.issue-photos img[src^="blob:"]').waitFor();
+    await snap(sellerPage, 'seller-sees-photo');
+    const photos = (await api(seller, '/api/orders')).data.issuePhotos as { id: string; uploader_id: string }[];
+    assert.deepEqual(
+      photos.map(photo => photo.uploader_id),
+      [buyer.id],
+    );
+    issueFiles.push(`issues/${order.id}/${photos[0].id}.webp`);
+    // Someone who is not part of the order cannot fetch it, with or without signing in.
+    for (const stranger of [outsider, null]) {
+      const response = await fetch(`${base}/api/orders/${order.id}/issue-photos/${photos[0].id}`, {
+        headers: { ...cookie, ...(stranger ? { Authorization: 'Bearer ' + stranger.token } : {}) },
+      });
+      assert.equal(response.status, stranger ? 404 : 401);
+    }
+    // Reading the conversation clears the unread count.
+    await buyerPage.locator('#orders-dialog [data-close-dialog]').first().click();
+    await buyerPage.locator('#messages-button').click();
+    await buyerPage.locator('#conversation-list button.unread').click();
+    await buyerPage.locator('#message-history li').first().waitFor();
+    await buyerPage.locator('#messages-dialog [data-close-dialog]').first().click();
+    await buyerPage
+      .locator('#messages-button')
+      .filter({ hasText: /^Messages$/ })
+      .waitFor();
+    await buyerPage.locator('#orders-button').click();
+    await purchase.filter({ hasText: 'The seller has asked for the item back' }).waitFor();
+  }
   const postedBack = purchase.getByRole('button', { name: 'I have posted it back' });
   await postedBack.click(); // refused without tracking
   await buyerPage.locator('#orders-status').filter({ hasText: 'first' }).waitFor();
@@ -213,6 +269,11 @@ try {
   step('seller confirms it is back; the buyer is refunded in full through Stripe');
   await refresh(sellerPage, /The buyer has posted the item back/);
   assert.match(await sale.innerText(), /Evri H00ABC123456/);
+  // A recognised carrier becomes a link to its tracking page.
+  assert.equal(
+    await sale.getByRole('link', { name: 'Track parcel' }).last().getAttribute('href'),
+    'https://www.evri.com/track/parcel/H00ABC123456',
+  );
   await snap(sellerPage, 'seller-return-posted');
   await sale.getByRole('button', { name: 'Item received back: refund the buyer' }).click();
   await sale.filter({ hasText: /Cancelled\. The buyer (is being|was) refunded/ }).waitFor();
@@ -238,6 +299,7 @@ try {
   process.exitCode = 1;
 } finally {
   await browser?.close();
+  if (issueFiles.length) await admin.storage.from('listing-photos').remove(issueFiles);
   if (payoutRule) await admin.rpc('set_require_payouts', { p_required: true });
   const ids = users.map(user => user.id);
   if (ids.length) {
@@ -257,6 +319,13 @@ try {
       await admin.from('orders').delete().in('id', orderIds);
     }
     await admin.from('email_outbox').delete().in('user_id', ids);
+    const threads = ((await admin.from('conversations').select('id').in('seller_id', ids)).data || []).map(
+      row => row.id as string,
+    );
+    if (threads.length) {
+      await admin.from('messages').delete().in('conversation_id', threads);
+      await admin.from('conversations').delete().in('id', threads);
+    }
     await admin.from('listings').delete().in('seller_id', ids);
     for (const id of ids) await admin.auth.admin.deleteUser(id);
     console.log(`Cleanup: removed ${orderIds.length} order(s), the test listing and ${ids.length} test accounts.`);

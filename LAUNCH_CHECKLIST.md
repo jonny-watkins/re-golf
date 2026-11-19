@@ -110,7 +110,10 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [x] [D] Return flow added to `npm run test:orders:live` (18/18 pass).
 - [x] [D] Return flow clicked through in a real (headless Edge) browser on the preview as buyer and seller (18 Nov): seller asks for the item back, buyer sees the return address and deadline and posts with tracking, seller confirms, buyer refunded in full through Stripe. `npm run test:returns:browser`.
 - [ ] [J] Return postage is paid by the buyer in every case (Vinted's rule). Confirm with the policy review, especially for items not as described.
-- [ ] [D] Next database change (one migration, applied with `db:push`): photos with a problem report, and unread-message tracking for the header indicator.
+- [x] [D] Photos with a problem report (19 Nov): while a problem is open the buyer and the seller can each add up to four photos; they are stored privately and shown only to the two of them and to support (order details on the Support screen). Database rules tested (`tests/issue-photos-unread.test.ts`). **Not yet seen working in a browser: needs the migration below.**
+- [ ] [J] Apply migration `20261119100000_issue_photos_and_unread.sql` to the development database: either add `SUPABASE_DB_URL` to `.env` so [D] can run `npm run db:push`, or paste the file into the Supabase SQL Editor. Until then the app works as before, without problem photos or the unread count.
+- [ ] [D] After that migration: deploy, then `npm run test:returns:browser`, which uploads a photo as the buyer, checks the seller sees it and a stranger cannot, and checks the unread count appears and clears.
+- [ ] [D] Delete problem photos a set time after the order is settled (retention), with the delivery addresses.
 - [ ] Later on problems: partial refunds, and confirming the return from carrier tracking.
 - [ ] Delete delivery addresses a set time after completion (retention).
 - [x] Reviews: buyer and seller can each leave one rating and comment after an order completes; the seller's average shows on their listings. Hosted check passed.
@@ -122,7 +125,7 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 - [ ] [J] Create a Resend account, verify the sending domain there, and give the server `EMAIL_API_KEY` and `EMAIL_FROM` (needs the domain).
 - [ ] [D] Send one of each email to a real inbox and check wording, links and spam placement.
 - [x] New-message notification email (queued; see above).
-- [ ] Unread-message indicator in the site header.
+- [x] Unread-message indicator (19 Nov): the Messages button shows how many conversations have something new, the conversation list marks them, and opening one clears it. Checked once a minute while the page is open. Database rules tested; needs migration `20261119100000` (section 4) before it shows anything.
 
 ## 6. Admin and support [D]/[J]
 

@@ -106,7 +106,7 @@ const orders = setupOrders(
 );
 let activeCondition = '';
 let maxPrice = '';
-const support = setupAdmin(api, () => session?.user.id);
+const support = setupAdmin(api, () => session?.user.id, privateImage);
 // Buyer fee settings from the server, used to show the price a buyer will actually pay for the item.
 let pricing: { feeFixedPence: number; feeBps: number; feeMinPence?: number; deliveryPence: number } | null = null;
 const withFee = (pence: number) =>
@@ -961,6 +961,7 @@ async function initialise() {
           privateImages.forEach(url => URL.revokeObjectURL(url));
           privateImages.clear();
           setTimeout(() => void support.refresh(), 0);
+          setTimeout(() => void inbox.refreshUnread(), 0);
           requestNumber++;
           setTimeout(() => void loadListings(), 0);
         }
@@ -980,6 +981,7 @@ async function initialise() {
       session = data.session;
       if (session && new URLSearchParams(window.location.search).get('auth') === 'recovery') openAuth('update');
       void support.refresh();
+      void inbox.refreshUnread();
       // Returning from the payment or payout-setup page.
       if (session && orders.handleReturn(new URLSearchParams(window.location.search)))
         history.replaceState(null, '', '/');

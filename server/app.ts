@@ -135,7 +135,8 @@ export function createApp(
         res.status(403).json({ error: 'This request came from an unexpected site.' });
         return;
       }
-      const photoUpload = req.method === 'POST' && /^\/listings\/[a-f0-9-]+\/photos$/i.test(req.path);
+      const photoUpload =
+        req.method === 'POST' && /^\/(listings\/[a-f0-9-]+\/photos|orders\/[a-f0-9-]+\/issue-photos)$/i.test(req.path);
       if (!req.is('application/json') && !(photoUpload && req.is('application/octet-stream'))) {
         res.status(415).json({ error: 'Send application/json.' });
         return;

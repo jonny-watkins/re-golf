@@ -39,7 +39,7 @@ Copy `.env.example` to `.env` and fill it in. Without it the app runs with examp
 | `npm run build` then `npm run test:smoke` | The production build starts and serves the site |
 | `npm run test:orders:live` | The whole order flow against the preview and Stripe's sandbox |
 | `npm run test:orders:browser` | A real purchase in a headless browser, including Stripe's payment page |
-| `npm run test:returns:browser` | Settling a reported problem with a tracked return, clicked through in a browser |
+| `npm run test:returns:browser` | Settling a reported problem with a tracked return, a photo of the problem and unread messages, clicked through in a browser |
 | `npm run test:listing:browser` | A listing's own page: shared link, link preview, Back and Forward |
 | `npm run orders:reconcile` | Stripe's records match the orders table and no refund, payout, deadline or email is stuck |
 

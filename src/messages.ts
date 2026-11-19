@@ -12,6 +12,40 @@ export function setupMessages(api: Api, userId: () => string | undefined, signIn
     generation = 0,
     busy = false;
   let pending: { body: string; client_id: string } | null = null;
+  // Conversations with a message this person has not seen, shown as a count on the Messages button.
+  let unread = new Set<string>();
+  function showUnread() {
+    const button = el('messages-button');
+    button.textContent = unread.size ? `Messages (${unread.size})` : 'Messages';
+    button.classList.toggle('has-unread', unread.size > 0);
+    button.setAttribute(
+      'aria-label',
+      unread.size ? `Messages, ${unread.size} unread conversation${unread.size === 1 ? '' : 's'}` : 'Messages',
+    );
+  }
+  async function refreshUnread() {
+    const who = userId();
+    if (!who) {
+      unread = new Set();
+      showUnread();
+      return;
+    }
+    try {
+      const result = await api<{ ids: string[] }>('/api/conversations/unread');
+      if (userId() !== who) return;
+      unread = new Set(result.ids);
+      showUnread();
+    } catch {
+      /* The count is a convenience; the next check will try again. */
+    }
+  }
+  // Checked once a minute while the page is in view, and when the visitor comes back to it.
+  setInterval(() => {
+    if (!document.hidden) void refreshUnread();
+  }, 60_000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void refreshUnread();
+  });
   const status = (value: string) => {
     el('messages-status').textContent = value;
   };
@@ -70,11 +104,19 @@ export function setupMessages(api: Api, userId: () => string | undefined, signIn
     rows = older ? [...result.messages, ...rows] : result.messages;
     render();
     status('');
+    // The server has recorded these as read.
+    if (unread.delete(thread.id)) {
+      showUnread();
+      el('conversation-list').querySelector(`[data-thread="${thread.id}"]`)?.classList.remove('unread');
+    }
   }
   async function loadInbox() {
     const request = ++generation;
     status('Loading conversations…');
-    const result = await api<{ conversations: Thread[]; total: number }>(`/api/conversations?page=${page}`);
+    const [result] = await Promise.all([
+      api<{ conversations: Thread[]; total: number }>(`/api/conversations?page=${page}`),
+      refreshUnread(),
+    ]);
     if (request !== generation || !userId() || !dialog.open) return;
     const list = el('conversation-list');
     list.replaceChildren();
@@ -83,6 +125,14 @@ export function setupMessages(api: Api, userId: () => string | undefined, signIn
       button.type = 'button';
       button.className = 'button button-light';
       button.textContent = `${thread.listing_title} · ${thread.buyer_id === userId() ? 'Buying' : 'Selling'}`;
+      button.dataset.thread = thread.id;
+      if (unread.has(thread.id)) {
+        button.classList.add('unread');
+        const marker = document.createElement('span');
+        marker.className = 'unread-marker';
+        marker.textContent = ' · New message';
+        button.append(marker);
+      }
       button.addEventListener('click', () => {
         pending = null;
         el<HTMLFormElement>('message-form').reset();
@@ -186,9 +236,12 @@ export function setupMessages(api: Api, userId: () => string | undefined, signIn
   });
   dialog.addEventListener('close', clear);
   return {
+    refreshUnread,
     clear: () => {
       dialog.close();
       clear();
+      unread = new Set();
+      showUnread();
     },
     start: async (listing: string) => {
       if (!userId()) {

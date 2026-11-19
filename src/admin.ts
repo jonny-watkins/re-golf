@@ -34,6 +34,7 @@ type Overview = {
 };
 type Detail = {
   order: Record<string, unknown>;
+  issuePhotos?: { id: string; uploader_id: string }[];
   events: {
     action: string;
     actor_id: string | null;
@@ -48,7 +49,11 @@ type Detail = {
 type Api = <T>(path: string, options?: RequestInit) => Promise<T>;
 
 /** Support screen for administrators: decide disputes, review reports, take down listings, pause checkout. */
-export function setupAdmin(api: Api, user: () => string | undefined) {
+export function setupAdmin(
+  api: Api,
+  user: () => string | undefined,
+  photoUrl: (path: string) => Promise<string | null>,
+) {
   const el = (id: string) => document.getElementById(id)!;
   const dialog = el('support-dialog') as HTMLDialogElement;
   const status = (text: string) => {
@@ -140,6 +145,26 @@ export function setupAdmin(api: Api, user: () => string | undefined) {
         'p',
         `${when(event.created_at)} — ${event.action} by ${name(event.actor_id)} → ${event.status}, money ${event.funds}${event.note ? ` — ${event.note}` : ''}`,
       );
+    const photos: { id: string; uploader_id: string }[] = data.issuePhotos || [];
+    if (photos.length) {
+      add(box, 'h5', 'Photos of the problem');
+      const gallery = add(box, 'div', '', 'issue-photos');
+      for (const photo of photos) {
+        const who = photo.uploader_id === order.buyer_id ? 'buyer' : 'seller';
+        const link = add(gallery, 'a');
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.title = `Added by the ${who}`;
+        const picture = add(link, 'img');
+        picture.alt = `Photo added by the ${who}`;
+        void photoUrl(`/api/admin/orders/${order.id}/issue-photos/${photo.id}`).then(url => {
+          if (!url) return;
+          picture.src = url;
+          link.href = url;
+        });
+        add(link, 'small', who === 'buyer' ? 'Buyer' : 'Seller');
+      }
+    }
     add(box, 'h5', 'Messages between buyer and seller');
     if (!data.messages.length) add(box, 'p', 'No messages about this listing.');
     for (const message of data.messages)

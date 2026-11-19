@@ -3,6 +3,7 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { searchFilters } from './search.js';
 import { HttpError } from './errors.js';
+import { missing } from './db.js';
 
 function check(error: { code?: string } | null) {
   if (!error) return;
@@ -95,6 +96,13 @@ export function socialRoutes(
     check(error);
     res.json({ conversations: data, total: count });
   });
+  // Conversations holding a message the caller has not seen. Empty until the migration is applied.
+  app.get('/api/conversations/unread', async (req, res) => {
+    const { db } = await authenticate(req);
+    const { data, error } = await db.rpc('unread_conversations');
+    if (error && !missing(error)) check(error);
+    res.json({ ids: error ? [] : ((data as string[] | null) ?? []) });
+  });
   app.post('/api/conversations', async (req, res) => {
     const { db, user } = await authenticate(req);
     const { listing_id } = z.object({ listing_id: z.uuid() }).strict().parse(req.body);
@@ -165,6 +173,16 @@ export function socialRoutes(
       .select('blocker_id')
       .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${other}),and(blocker_id.eq.${other},blocked_id.eq.${user.id})`);
     check(blocks.error);
+    // Reading the latest page records the caller's place, which clears the unread marker.
+    // Best effort: a failure here must not stop the messages being shown.
+    const latest = messages.data?.[0]?.id;
+    if (!before && latest)
+      await db
+        .from('conversation_reads')
+        .upsert(
+          { conversation_id: thread.id, user_id: user.id, last_read_id: latest },
+          { onConflict: 'conversation_id,user_id' },
+        );
     res.json({
       conversation: thread,
       messages: messages.data?.slice(0, 50).reverse(),
