@@ -43,10 +43,14 @@ const templates = [
   'new_message',
 ].filter(name => !only.length || only.includes(name));
 
+// Links in a sample must open on a phone, so a local address is replaced by the hosted preview.
+const origin = /localhost|127\.0\.0\.1/.test(config.origin)
+  ? 'https://re-golf-development.onrender.com'
+  : config.origin;
 const send = resendSender(config.emailApiKey, config.emailFrom);
 let failed = 0;
 for (const template of templates) {
-  const email = renderEmail(template, data, config.origin)!;
+  const email = renderEmail(template, data, origin)!;
   try {
     await send({ to, subject: email.subject, text: email.text });
     console.log('sent  ', template, '—', email.subject);
