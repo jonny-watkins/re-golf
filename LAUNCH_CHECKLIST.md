@@ -121,8 +121,10 @@ Sandbox connected 17 Nov. Verified against Stripe: checkout creation (correct to
 
 - [ ] [J] Custom SMTP sender on a Relofted domain (Supabase's default sender is for testing only and heavily rate-limited). Needs the domain from section 8.
 - [x] Emails written and queued by the database for every order step (paid, sold with the post-by deadline, posted with tracking, delivered, completed, paid out, problem reported, refunding, refunded, cancelled) and for new messages (at most one an hour per conversation). Sending is off until `EMAIL_API_KEY` and `EMAIL_FROM` are set; stale emails are dropped rather than sent late. Templates and queue logic are tested; **no real email has been sent**.
-- [ ] [J] Create a Resend account, verify the sending domain there, and give the server `EMAIL_API_KEY` and `EMAIL_FROM` (needs the domain).
-- [ ] [D] Send one of each email to a real inbox and check wording, links and spam placement.
+- [x] [J] Domain bought: `relofted.co.uk` (GoDaddy), 19 Nov.
+- [x] [J]/[D] Resend account created, `relofted.co.uk` verified there (four DNS records at GoDaddy), and `EMAIL_API_KEY` and `EMAIL_FROM` (`Relofted <orders@relofted.co.uk>`) set locally and on the preview (19 Nov). Order and message emails are now switched on for the preview. Addresses at reserved test domains (`example.com` and similar, used by the automated checks) are never emailed, to protect the domain's reputation.
+- [ ] [D]/[J] Send one of each email to a real inbox and check wording, links and spam placement: `npx tsx scripts/send-sample-emails.ts <address>`. One sample has been accepted by the provider's test inbox; none has been read in a real inbox yet.
+- [ ] [J] Sign-up and password-reset emails still come from Supabase's rate-limited test sender. In Supabase → Authentication → Emails → SMTP settings, switch on custom SMTP with Resend (host `smtp.resend.com`, port `465`, username `resend`, password = the Resend API key, sender `accounts@relofted.co.uk`).
 - [x] New-message notification email (queued; see above).
 - [x] Unread-message indicator (19 Nov): the Messages button shows how many conversations have something new, the conversation list marks them, and opening one clears it. Checked once a minute while the page is open. Database rules tested; the count appearing and clearing was checked in a browser on the preview (19 Nov).
 
