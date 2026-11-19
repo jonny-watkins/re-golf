@@ -386,7 +386,9 @@ async function openListing(id: string, fromAddress = false) {
     const data = await api<{ listing: Listing; can_buy: boolean }>(`/api/listings/${id}`);
     // Ignore the answer if the visitor has moved on to something else meanwhile.
     if (known ? current?.id !== id || !listingDialog.open : listingInAddress() !== id) return;
-    showListing(data.listing, data.can_buy);
+    // A listing already on screen is only redrawn when it turns out not to be buyable: redrawing
+    // one that is would wipe the price the buyer may just have been quoted.
+    if (!known || !data.can_buy) showListing(data.listing, data.can_buy);
   } catch (error) {
     if (known ? current?.id !== id : listingInAddress() !== id) return;
     if (listingDialog.open) {
