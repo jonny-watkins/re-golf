@@ -278,7 +278,7 @@ try {
   await sale.getByRole('button', { name: 'Item received back: refund the buyer' }).click();
   await sale.filter({ hasText: /Cancelled\. The buyer (is being|was) refunded/ }).waitFor();
   await snap(sellerPage, 'seller-refunded');
-  await until('the Stripe refund', async () => (await dbOrder(order.id)).funds === 'refunded', 180);
+  await until('the Stripe refund', async () => (await dbOrder(order.id)).funds === 'refunded', 360); // settlement runs every five minutes
   const after = await dbOrder(order.id);
   assert.deepEqual([after.status, after.return_address], ['cancelled', null]);
   assert.deepEqual(
