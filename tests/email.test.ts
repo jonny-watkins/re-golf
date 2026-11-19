@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { renderEmail, sendPendingEmails } from '../server/email';
+import { renderEmail, sendPendingEmails, undeliverable } from '../server/email';
 import { readConfig } from '../server/config';
 
 const origin = 'https://relofted.example';
@@ -84,12 +84,15 @@ test('the queue sends once, drops stale or unsendable emails, and gives up on re
     { id: 5, user_id: 'bounces', template: 'order_refunded', data, created_at: now, attempts: 4, sent_at: null },
     { id: 6, user_id: 'seller', template: 'mystery', data, created_at: now, attempts: 0, sent_at: null },
     { id: 7, user_id: 'seller', template: 'order_paid_out', data, created_at: now, attempts: 0, sent_at: now },
+    { id: 8, user_id: 'robot', template: 'order_paid', data, created_at: now, attempts: 0, sent_at: null },
   ];
   const emails: Record<string, string> = {
-    seller: 'seller@example.com',
-    buyer: 'buyer@example.com',
+    seller: 'seller@golfmail.co.uk',
+    buyer: 'buyer@golfmail.co.uk',
     deleted: 'deleted-x@deleted.invalid',
-    bounces: 'bounces@example.com',
+    bounces: 'bounces@golfmail.co.uk',
+    // Automated checks sign up with reserved example addresses, which must never be emailed.
+    robot: 'orders-test-1234@example.com',
   };
   const admin = {
     from: () => {
@@ -120,8 +123,8 @@ test('the queue sends once, drops stale or unsendable emails, and gives up on re
     if (message.to.startsWith('bounces')) throw new Error('Email provider returned 500');
     sent.push(`${message.to}: ${message.subject}`);
   };
-  assert.deepEqual(await sendPendingEmails(admin, send, origin), { sent: 1, dropped: 3, failed: 2 });
-  assert.deepEqual(sent, ['seller@example.com: You sold Ping G430: post it by Sunday 22 November at 15:36']);
+  assert.deepEqual(await sendPendingEmails(admin, send, origin), { sent: 1, dropped: 4, failed: 2 });
+  assert.deepEqual(sent, ['seller@golfmail.co.uk: You sold Ping G430: post it by Sunday 22 November at 15:36']);
   const state = Object.fromEntries(
     rows.map(row => [row.id, `${row.sent_at ? 'done' : 'queued'}${row.last_error ? ' (' + row.last_error + ')' : ''}`]),
   );
@@ -133,7 +136,12 @@ test('the queue sends once, drops stale or unsendable emails, and gives up on re
     5: 'done (gave up: Email provider returned 500)',
     6: 'done (unknown template)',
     7: 'done',
+    8: 'done (no address)',
   });
+  for (const address of ['a@example.com', 'a@EXAMPLE.org', 'x@deleted.invalid', 'a@shop.test', 'a@localhost'])
+    assert.equal(undeliverable(address), true, address);
+  for (const address of ['a@gmail.com', 'a@relofted.co.uk', 'example.com@outlook.com', 'a@contest.co.uk'])
+    assert.equal(undeliverable(address), false, address);
   assert.equal(rows[3].attempts, 1);
   // Running again sends nothing twice; only the retry is attempted.
   assert.deepEqual(await sendPendingEmails(admin, send, origin), { sent: 0, dropped: 0, failed: 1 });

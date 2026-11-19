@@ -125,6 +125,14 @@ export function renderEmail(
   }
 }
 
+/**
+ * Addresses that can never receive mail: deleted accounts, and the reserved example and test
+ * domains that automated checks sign up with. Sending to them would only bounce, and bounces
+ * damage the sending domain's reputation with mail providers.
+ */
+export const undeliverable = (address: string) =>
+  /@(example\.(com|org|net)|([^@]+\.)?(invalid|test|example|localhost))$/i.test(address);
+
 /** Sends through Resend's HTTP API. The key and sender address are set only once a domain is verified there. */
 export function resendSender(apiKey: string, from: string): EmailSender {
   return async ({ to, subject, text }) => {
@@ -167,7 +175,7 @@ export async function sendPendingEmails(admin: SupabaseClient, send: EmailSender
     try {
       const found = await admin.auth.admin.getUserById(row.user_id);
       const to = found.data.user?.email;
-      if (!to || to.endsWith('@deleted.invalid')) {
+      if (!to || undeliverable(to)) {
         await finish(row.id, 'no address');
         result.dropped++;
         continue;
