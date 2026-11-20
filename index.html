@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relofted — Coming soon</title>
+  <meta name="description" content="Relofted is a UK marketplace for pre-loved golf clubs, where your payment is held until the club arrives and you have checked it. Coming soon.">
+  <meta name="theme-color" content="#1E2B23">
+  <meta property="og:title" content="Relofted — Better clubs, back in play">
+  <meta property="og:description" content="A UK marketplace for pre-loved golf clubs. Coming soon.">
+  <meta property="og:image" content="/relofted-icon.png">
+  <link rel="icon" href="/relofted-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/relofted-icon.png">
+  <style>
+    :root {
+      --ink: #1E2B23;
+      --paper: #F3EEE4;
+      --accent: #E4572E;
+      --muted: #5E665F;
+      --line: rgba(30, 43, 35, .14);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    main {
+      flex: 1;
+      width: 100%;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 56px 24px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .logo { width: 168px; height: auto; display: block; margin-bottom: 64px; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-size: .74rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--ink);
+    }
+    .eyebrow::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 500;
+      font-size: clamp(2.6rem, 8vw, 4.8rem);
+      line-height: 1;
+      letter-spacing: -.045em;
+      margin: 20px 0 24px;
+    }
+    h1 em { color: var(--accent); }
+    p.lead { font-size: 1.12rem; line-height: 1.65; color: var(--muted); max-width: 34em; margin: 0; }
+    ul.points { list-style: none; padding: 0; margin: 44px 0 0; display: grid; gap: 0; border-top: 1px solid var(--line); max-width: 560px; }
+    ul.points li { display: flex; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); line-height: 1.5; }
+    ul.points b { min-width: 1.6em; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+    footer {
+      width: 100%; max-width: 760px; margin: 0 auto; padding: 24px;
+      font-size: .82rem; color: var(--muted);
+    }
+    @media (max-width: 480px) {
+      main { padding-top: 40px; }
+      .logo { width: 140px; margin-bottom: 48px; }
+      p.lead { font-size: 1.02rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <img class="logo" src="/relofted-logo.svg" alt="Relofted" width="333" height="129">
+    <span class="eyebrow">Coming soon</span>
+    <h1>Better clubs,<br><em>back in play.</em></h1>
+    <p class="lead">Relofted is a UK marketplace for buying and selling pre-loved golf clubs. Your payment is held safely until the club arrives and you have checked it.</p>
+    <ul class="points">
+      <li><b>01</b><span>List the clubs gathering dust in the garage.</span></li>
+      <li><b>02</b><span>Buy with your money held until the club arrives as described.</span></li>
+      <li><b>03</b><span>Sellers are paid once the buyer is happy.</span></li>
+    </ul>
+  </main>
+  <footer>&copy; <span id="y">2026</span> Relofted</footer>
+  <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+</body>
+</html>
